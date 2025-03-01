@@ -9,6 +9,8 @@ use tray::create_tray;
 
 mod features;
 mod tray;
+#[cfg(test)]
+mod tests;
 mod commands {
     use std::process::Command;
     
