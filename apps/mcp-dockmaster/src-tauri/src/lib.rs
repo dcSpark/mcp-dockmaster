@@ -1,8 +1,9 @@
 use std::sync::Arc;
 use tauri::{Manager, RunEvent};
 use tokio::sync::RwLock;
-use log::info;
+use log::{info, error};
 use crate::features::http_server::start_http_server;
+use crate::features::database::Database;
 use crate::features::mcp_proxy::{MCPState, register_tool, list_tools, list_all_server_tools, discover_tools, execute_tool, execute_proxy_tool, update_tool_status, update_tool_config, uninstall_tool, get_claude_config, get_claude_stdio_config, get_all_server_data, mcp_hello_world};
 use tray::create_tray;
 
@@ -54,8 +55,29 @@ fn cleanup_mcp_processes(app_handle: &tauri::AppHandle) {
     }
 }
 
-async fn init_mcp_services() -> MCPState {
-    let mcp_state = MCPState::default();
+async fn init_mcp_services(data_dir: std::path::PathBuf) -> MCPState {
+    // Initialize the database
+    info!("Initializing database...");
+    let database = match Database::initialize(data_dir) {
+        Ok(db) => {
+            info!("Database initialized successfully");
+            Arc::new(db)
+        },
+        Err(e) => {
+            error!("Failed to initialize database: {}", e);
+            // Continue without database support
+            return MCPState::default();
+        }
+    };
+    
+    // Create the MCP state with database support
+    let mcp_state = MCPState::new(database);
+    
+    // Load tools and server tools from the database
+    if let Err(e) = mcp_state.tool_registry.write().await.load_from_database() {
+        error!("Failed to load data from database: {}", e);
+    }
+    
     let http_state = Arc::new(RwLock::new(mcp_state.clone()));
     
     info!("Starting MCP HTTP server...");
@@ -95,14 +117,25 @@ fn handle_window_reopen(app_handle: &tauri::AppHandle) {
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub async fn run() {
-    let mcp_state = init_mcp_services().await;
+    // Create a temporary directory for the database
+    let data_dir = std::env::temp_dir().join("mcp_dockmaster");
+    info!("Using data directory: {:?}", data_dir);
+    
+    // Initialize MCP services with the data directory
+    let mcp_state = init_mcp_services(data_dir).await;
 
     tauri::Builder::default()
         .plugin(tauri_plugin_opener::init())
-        .manage(mcp_state)
         .setup(|app| {
             create_tray(app.handle())?;
             Ok(())
+        })
+        .manage(mcp_state)
+        .on_window_event(|window, event| {
+            if let tauri::WindowEvent::CloseRequested { api, .. } = event {
+                api.prevent_close();
+                window.hide().unwrap();
+            }
         })
         .invoke_handler(tauri::generate_handler![
             commands::greet,

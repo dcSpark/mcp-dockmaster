@@ -11,6 +11,7 @@ use tokio::{
     time::Duration,
 };
 use thiserror::Error;
+use crate::features::database::{Database, DbResult};
 
 /// Holds information about registered tools and their processes
 #[derive(Default)]
@@ -19,9 +20,73 @@ pub struct ToolRegistry {
     pub processes: HashMap<String, Option<Child>>,
     pub server_tools: HashMap<String, Vec<Value>>,
     pub process_ios: HashMap<String, (tokio::process::ChildStdin, tokio::process::ChildStdout)>,
+    pub database: Option<Arc<Database>>,
 }
 
 impl ToolRegistry {
+    /// Create a new ToolRegistry with database support
+    pub fn new(database: Arc<Database>) -> Self {
+        Self {
+            tools: HashMap::new(),
+            processes: HashMap::new(),
+            server_tools: HashMap::new(),
+            process_ios: HashMap::new(),
+            database: Some(database),
+        }
+    }
+
+    /// Load tools and server tools from the database
+    pub fn load_from_database(&mut self) -> DbResult<()> {
+        if let Some(db) = &self.database {
+            // Load tools
+            self.tools = db.load_tools()?;
+            
+            // Load server tools
+            self.server_tools = db.load_server_tools()?;
+            
+            info!("Loaded {} tools and {} server tools from database", 
+                  self.tools.len(), self.server_tools.len());
+        }
+        
+        Ok(())
+    }
+
+    /// Save a tool to the database
+    pub fn save_tool(&self, id: &str, data: &Value) -> DbResult<()> {
+        if let Some(db) = &self.database {
+            db.save_tool(id, data)?;
+        }
+        
+        Ok(())
+    }
+
+    /// Save server tools to the database
+    pub fn save_server_tools(&self, server_id: &str, tools: &[Value]) -> DbResult<()> {
+        if let Some(db) = &self.database {
+            db.save_server_tools(server_id, tools)?;
+        }
+        
+        Ok(())
+    }
+
+    /// Delete a tool from the database
+    pub fn delete_tool(&self, id: &str) -> DbResult<()> {
+        if let Some(db) = &self.database {
+            db.delete_tool(id)?;
+        }
+        
+        Ok(())
+    }
+
+    /// Delete server tools from the database
+    pub fn delete_server_tools(&self, server_id: &str) -> DbResult<()> {
+        if let Some(db) = &self.database {
+            db.delete_server_tools(server_id)?;
+        }
+        
+        Ok(())
+    }
+
     /// Kill all running processes
     pub async fn kill_all_processes(&mut self) {
         for (tool_id, process_opt) in self.processes.iter_mut() {
@@ -47,9 +112,31 @@ impl ToolRegistry {
 }
 
 /// Shared state for MCP tools
-#[derive(Clone, Default)]
+#[derive(Clone)]
 pub struct MCPState {
     pub tool_registry: Arc<RwLock<ToolRegistry>>,
+    pub database: Option<Arc<Database>>,
+}
+
+impl Default for MCPState {
+    fn default() -> Self {
+        Self {
+            tool_registry: Arc::new(RwLock::new(ToolRegistry::default())),
+            database: None,
+        }
+    }
+}
+
+impl MCPState {
+    /// Create a new MCPState with database support
+    pub fn new(database: Arc<Database>) -> Self {
+        let tool_registry = Arc::new(RwLock::new(ToolRegistry::new(database.clone())));
+        
+        Self {
+            tool_registry,
+            database: Some(database),
+        }
+    }
 }
 
 /// MCP tool registration request
@@ -500,10 +587,23 @@ pub async fn register_tool(
         }
     }
     
-    registry.tools.insert(tool_id.clone(), tool_definition);
+    registry.tools.insert(tool_id.clone(), tool_definition.clone());
+    
+    // Save the tool to the database
+    if let Err(e) = registry.save_tool(&tool_id, &tool_definition) {
+        error!("Failed to save tool to database: {}", e);
+        // Continue even if database save fails
+    }
 
     // Create a default empty tools list
-    registry.server_tools.insert(tool_id.clone(), Vec::new());
+    let empty_tools: Vec<Value> = Vec::new();
+    registry.server_tools.insert(tool_id.clone(), empty_tools.clone());
+    
+    // Save the empty server tools to the database
+    if let Err(e) = registry.save_server_tools(&tool_id, &empty_tools) {
+        error!("Failed to save server tools to database: {}", e);
+        // Continue even if database save fails
+    }
     
     // Spawn process if tool is enabled
     if request.tool_type == "nodejs" {
@@ -572,7 +672,13 @@ pub async fn register_tool(
                         let mut registry = state.tool_registry.write().await;
                         // Clone tools before inserting to avoid the "moved value" error
                         let tools_clone = tools.clone();
-                        registry.server_tools.insert(tool_id.clone(), tools);
+                        registry.server_tools.insert(tool_id.clone(), tools.clone());
+                        
+                        // Save the server tools to the database
+                        if let Err(e) = registry.save_server_tools(&tool_id, &tools) {
+                            error!("Failed to save server tools to database: {}", e);
+                            // Continue even if database save fails
+                        }
                         
                         // If empty tools, add a default "main" tool
                         if tools_clone.is_empty() {
@@ -582,7 +688,14 @@ pub async fn register_tool(
                                 "name": request.tool_name,
                                 "description": request.description
                             });
-                            registry.server_tools.insert(tool_id.clone(), vec![default_tool]);
+                            let default_tools = vec![default_tool.clone()];
+                            registry.server_tools.insert(tool_id.clone(), default_tools.clone());
+                            
+                            // Save the default tool to the database
+                            if let Err(e) = registry.save_server_tools(&tool_id, &default_tools) {
+                                error!("Failed to save default tool to database: {}", e);
+                                // Continue even if database save fails
+                            }
                         }
                     },
                     Ok(Err(e)) => {
@@ -594,7 +707,14 @@ pub async fn register_tool(
                             "name": request.tool_name,
                             "description": request.description
                         });
-                        registry.server_tools.insert(tool_id.clone(), vec![default_tool]);
+                        let default_tools = vec![default_tool.clone()];
+                        registry.server_tools.insert(tool_id.clone(), default_tools.clone());
+                        
+                        // Save the default tool to the database
+                        if let Err(e) = registry.save_server_tools(&tool_id, &default_tools) {
+                            error!("Failed to save default tool to database: {}", e);
+                            // Continue even if database save fails
+                        }
                         info!("Added default tool for server {}", tool_id);
                     },
                     Err(_) => {
@@ -606,7 +726,14 @@ pub async fn register_tool(
                             "name": request.tool_name,
                             "description": request.description
                         });
-                        registry.server_tools.insert(tool_id.clone(), vec![default_tool]);
+                        let default_tools = vec![default_tool.clone()];
+                        registry.server_tools.insert(tool_id.clone(), default_tools.clone());
+                        
+                        // Save the default tool to the database
+                        if let Err(e) = registry.save_server_tools(&tool_id, &default_tools) {
+                            error!("Failed to save default tool to database: {}", e);
+                            // Continue even if database save fails
+                        }
                         info!("Added default tool for server {} after timeout", tool_id);
                     }
                 }
@@ -725,6 +852,12 @@ pub async fn discover_tools(
         Ok(tools) => {
             // Store the discovered tools
             registry.server_tools.insert(request.server_id.clone(), tools.clone());
+            
+            // Save the server tools to the database
+            if let Err(e) = registry.save_server_tools(&request.server_id, &tools) {
+                error!("Failed to save discovered tools to database: {}", e);
+                // Continue even if database save fails
+            }
             
             Ok(DiscoverServerToolsResponse {
                 success: true,
@@ -971,6 +1104,14 @@ pub async fn update_tool_config(
         }
     }
     
+    // Save the updated tool to the database
+    if let Some(tool) = registry.tools.get(&request.tool_id) {
+        if let Err(e) = registry.save_tool(&request.tool_id, tool) {
+            error!("Failed to save updated tool configuration to database: {}", e);
+            // Continue even if database save fails
+        }
+    }
+    
     // Return success
     Ok(ToolConfigUpdateResponse {
         success: true,
@@ -1000,6 +1141,18 @@ pub async fn uninstall_tool(
     if registry.tools.remove(&request.tool_id).is_some() {
         registry.processes.remove(&request.tool_id);
         registry.server_tools.remove(&request.tool_id);
+        
+        // Delete the tool from the database
+        if let Err(e) = registry.delete_tool(&request.tool_id) {
+            error!("Failed to delete tool from database: {}", e);
+            // Continue even if database delete fails
+        }
+        
+        // Delete the server tools from the database
+        if let Err(e) = registry.delete_server_tools(&request.tool_id) {
+            error!("Failed to delete server tools from database: {}", e);
+            // Continue even if database delete fails
+        }
         
         Ok(ToolUninstallResponse {
             success: true,
@@ -1420,4 +1573,4 @@ pub async fn mcp_hello_world() -> Result<Value, String> {
         "message": "Hello from MCP Server Proxy!",
         "status": "OK"
     }))
-} 
+}                    
