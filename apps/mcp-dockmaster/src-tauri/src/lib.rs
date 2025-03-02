@@ -2,6 +2,7 @@ use std::sync::Arc;
 use tauri::{Manager, RunEvent};
 use tokio::sync::RwLock;
 use log::{info, error};
+use dirs;
 use crate::features::http_server::start_http_server;
 use crate::features::database::Database;
 use crate::features::mcp_proxy::{MCPState, register_tool, list_tools, list_all_server_tools, discover_tools, execute_tool, execute_proxy_tool, update_tool_status, update_tool_config, uninstall_tool, get_claude_config, get_claude_stdio_config, get_all_server_data, mcp_hello_world};
@@ -119,8 +120,20 @@ fn handle_window_reopen(app_handle: &tauri::AppHandle) {
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub async fn run() {
-    // Create a temporary directory for the database
-    let data_dir = std::env::temp_dir().join("mcp_dockmaster");
+    // Create a permanent directory for the database
+    let data_dir = match dirs::data_dir() {
+        Some(dir) => dir.join("mcp_dockmaster"),
+        None => {
+            error!("Could not determine data directory, falling back to temp directory");
+            std::env::temp_dir().join("mcp_dockmaster")
+        }
+    };
+    
+    // Ensure the directory exists
+    if let Err(e) = std::fs::create_dir_all(&data_dir) {
+        error!("Failed to create data directory: {}", e);
+    }
+    
     info!("Using data directory: {:?}", data_dir);
     
     // Initialize MCP services with the data directory
