@@ -27,6 +27,33 @@ const availableTools: RegistryTool[] = [
     }
   },
   {
+    id: "jupiter-proxy",
+    name: "Jupiter Proxy",
+    description: "A tool that provides access to Jupiter's Solana swap services",
+    publisher: {
+      id: "jupiter",
+      name: "Jupiter",
+      url: "https://jup.ag/",
+    },
+    isOfficial: false,
+    sourceUrl: "local",
+    distribution: {
+      type: "npm",
+      package: "file:/Users/nicolasarqueros/mcp-dockmaster/develop/mcp-server-jupiter",
+    },
+    license: "MIT",
+    runtime: "node",
+    config: {
+      command: "npx",
+      args: ["-y", "file:/Users/nicolasarqueros/mcp-dockmaster/develop/mcp-server-jupiter"],
+      env: {
+        "JUPITER_API_KEY": {
+          description: "Your Jupiter API key. See: https://jup.ag/api",
+        }
+      }
+    }
+  },
+  {
     id: "brave-search-ref",
     name: "Brave Search",
     description: "Web and local search using Brave's Search API. A Model Context Protocol reference server.",
