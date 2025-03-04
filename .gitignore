@@ -24,3 +24,6 @@ lerna-debug.log*
 *.njsproj
 *.sln
 *.sw?
+
+# Rust
+**/target/
