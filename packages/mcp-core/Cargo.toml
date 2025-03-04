@@ -1,0 +1,20 @@
+[package]
+name = "mcp_core"
+version = "0.1.0"
+edition = "2021"
+description = "Core functionality for MCP Dockmaster"
+authors = ["dcSpark"]
+
+[dependencies]
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+tokio = { version = "1.0", features = ["full"] }
+reqwest = { version = "0.11", features = ["json"] }
+axum = { version = "0.7", features = ["macros"] }
+tower = "0.4"
+tower-http = { version = "0.5", features = ["cors"] }
+hyper = "1.0"
+log = "0.4.26"
+thiserror = "2.0.11"
+rusqlite = { version = "0.30.0", features = ["bundled"] }
+directories = "5.0.1"

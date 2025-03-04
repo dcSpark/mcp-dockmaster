@@ -2360,6 +2360,24 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "0e7465ac9959cc2b1404e8e2367b43684a6d13790fe23056cc8c6c5a6b7bcb94"
 
 [[package]]
+name = "mcp_core"
+version = "0.1.0"
+dependencies = [
+ "axum",
+ "directories",
+ "hyper 1.6.0",
+ "log",
+ "reqwest 0.11.27",
+ "rusqlite",
+ "serde",
+ "serde_json",
+ "thiserror 2.0.11",
+ "tokio",
+ "tower 0.4.13",
+ "tower-http",
+]
+
+[[package]]
 name = "mcp_dockmaster"
 version = "0.1.0"
 dependencies = [
@@ -2368,6 +2386,7 @@ dependencies = [
  "env_logger",
  "hyper 1.6.0",
  "log",
+ "mcp_core",
  "reqwest 0.11.27",
  "rusqlite",
  "serde",
