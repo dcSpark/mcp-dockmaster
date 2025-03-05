@@ -54,8 +54,8 @@ mod tests {
 
         // Create registration request
         let request = json!({
-            "tool_name": "hello_world",
-            "description": "A simple hello world tool",
+            "tool_name": "hello_world_with_input",
+            "description": "A simple hello world tool with input",
             "tool_type": "node",
             "authentication": null,
             "configuration": {
@@ -76,7 +76,7 @@ mod tests {
         // Execute tool
         let exec_request = json!({
             "tool_id": tool_id,
-            "parameters": {"name": "Test"}
+            "parameters": {"message": "Test"}
         });
         let result =
             mcp_proxy::execute_tool(&mcp_state, serde_json::from_value(exec_request).unwrap())
