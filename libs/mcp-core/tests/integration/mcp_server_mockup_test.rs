@@ -5,7 +5,7 @@ use tokio::sync::RwLock;
 #[cfg(test)]
 mod tests {
     use mcp_core::{
-        mcp_proxy, mcp_state::MCPState, models::models::ToolExecutionRequest,
+        domain::services::ToolService, mcp_state::MCPState, models::models::ToolExecutionRequest,
         registry::ToolRegistry,
     };
 
@@ -14,9 +14,12 @@ mod tests {
     #[tokio::test]
     async fn test_mcp_core_with_registry() -> Result<(), String> {
         // Initialize MCP state
-        let mcp_state = MCPState {
+        let mcp_state = Arc::new(RwLock::new(MCPState {
             tool_registry: Arc::new(RwLock::new(ToolRegistry::new()?)),
-        };
+        }));
+
+        // Create tool service
+        let tool_service = Arc::new(ToolService::new(mcp_state.clone()));
 
         // Get the absolute path to the script
         let current_dir = std::env::current_dir().map_err(|e| e.to_string())?;
@@ -46,14 +49,15 @@ mod tests {
         );
 
         // Register tool
-        let response =
-            mcp_proxy::register_tool(&mcp_state, serde_json::from_value(request).unwrap()).await?;
+        let response = tool_service
+            .register_tool(serde_json::from_value(request).unwrap())
+            .await?;
         let tool_id = response.tool_id.ok_or("No tool ID returned")?;
 
         eprintln!("Received tool_id from registration: {}", tool_id);
 
         // List all available tools
-        let all_tools = mcp_proxy::list_all_server_tools(&mcp_state).await?;
+        let all_tools = tool_service.list_tools().await?;
         eprintln!(
             "Available tools: {}",
             serde_json::to_string_pretty(&all_tools).unwrap()
@@ -65,7 +69,7 @@ mod tests {
             parameters: json!({}),
         };
 
-        let result = mcp_core::mcp_proxy::execute_proxy_tool(&mcp_state, request).await?;
+        let result = tool_service.execute_proxy_tool(request).await?;
 
         // Print the execution result
         eprintln!(
@@ -107,7 +111,7 @@ mod tests {
             }),
         };
 
-        let result = mcp_core::mcp_proxy::execute_proxy_tool(&mcp_state, request).await?;
+        let result = tool_service.execute_proxy_tool(request).await?;
 
         eprintln!(
             "Tool execution result (with input): {}",
@@ -149,7 +153,7 @@ mod tests {
             }),
         };
 
-        let result = mcp_core::mcp_proxy::execute_proxy_tool(&mcp_state, request).await?;
+        let result = tool_service.execute_proxy_tool(request).await?;
 
         eprintln!(
             "Tool execution result (with config): {}",
@@ -184,8 +188,13 @@ mod tests {
         }
 
         // Cleanup
-        let mut registry = mcp_state.tool_registry.write().await;
-        registry.kill_all_processes().await;
+        let mut registry = mcp_state.write().await;
+        registry
+            .tool_registry
+            .write()
+            .await
+            .kill_all_processes()
+            .await;
 
         Ok(())
     }

@@ -9,10 +9,8 @@ use serde::{Deserialize, Serialize};
 use serde_json::{json, Value};
 use std::net::SocketAddr;
 use std::sync::Arc;
-use tokio::sync::RwLock;
 
 use crate::domain::services::ToolService;
-use crate::mcp_state::MCPState;
 
 #[derive(Deserialize)]
 pub struct JsonRpcRequest {
@@ -40,19 +38,12 @@ pub struct JsonRpcError {
 
 #[derive(Clone)]
 pub struct HttpState {
-    pub mcp_state: Arc<RwLock<MCPState>>,
     pub tool_service: Arc<ToolService>,
 }
 
-pub async fn start_http_server(mcp_state: Arc<RwLock<MCPState>>) {
-    // Create the tool service
-    let tool_service = Arc::new(ToolService::new(mcp_state.clone()));
-    
+pub async fn start_http_server(tool_service: Arc<ToolService>) {
     // Create the HTTP state
-    let http_state = Arc::new(HttpState {
-        mcp_state: mcp_state.clone(),
-        tool_service,
-    });
+    let http_state = Arc::new(HttpState { tool_service });
 
     let app = Router::new()
         .route("/mcp-proxy", post(handle_mcp_request))
@@ -83,12 +74,10 @@ async fn handle_mcp_request(
     let tool_service = &state.tool_service;
 
     let result = match request.method.as_str() {
-        "tools/list" => {
-            match tool_service.list_tools().await {
-                Ok(tools) => Ok(json!({ "tools": tools })),
-                Err(e) => Err(json!({"code": -32603, "message": e}))
-            }
-        }
+        "tools/list" => match tool_service.list_tools().await {
+            Ok(tools) => Ok(json!({ "tools": tools })),
+            Err(e) => Err(json!({"code": -32603, "message": e})),
+        },
         "tools/call" => {
             if let Some(params) = request.params {
                 // Extract tool name and arguments from params
@@ -114,10 +103,13 @@ async fn handle_mcp_request(
                 };
 
                 // Call the domain service to execute the tool
-                match tool_service.execute_proxy_tool(crate::models::models::ToolExecutionRequest {
-                    tool_id: tool_name.to_string(),
-                    parameters: arguments,
-                }).await {
+                match tool_service
+                    .execute_proxy_tool(crate::models::models::ToolExecutionRequest {
+                        tool_id: tool_name.to_string(),
+                        parameters: arguments,
+                    })
+                    .await
+                {
                     Ok(response) => {
                         if response.success {
                             Ok(json!({
@@ -134,7 +126,7 @@ async fn handle_mcp_request(
                                 "message": response.error.unwrap_or_else(|| "Unknown error".to_string())
                             }))
                         }
-                    },
+                    }
                     Err(e) => Err(json!({
                         "code": -32000,
                         "message": format!("Tool execution error: {}", e)
@@ -149,18 +141,14 @@ async fn handle_mcp_request(
         }
         "prompts/list" => Ok(json!({ "prompts": [] })),
         "resources/list" => Ok(json!({ "resources": [] })),
-        "resources/read" => {
-            Err(json!({
-                "code": -32601,
-                "message": "Resource reading not implemented yet"
-            }))
-        }
-        "prompts/get" => {
-            Err(json!({
-                "code": -32601,
-                "message": "Prompt retrieval not implemented yet"
-            }))
-        }
+        "resources/read" => Err(json!({
+            "code": -32601,
+            "message": "Resource reading not implemented yet"
+        })),
+        "prompts/get" => Err(json!({
+            "code": -32601,
+            "message": "Prompt retrieval not implemented yet"
+        })),
         _ => Err(json!({
             "code": -32601,
             "message": format!("Method not found: {}", request.method)
@@ -199,5 +187,3 @@ async fn handle_mcp_request(
         }
     }
 }
-
-// Handler functions removed - domain logic moved to domain/services.rs

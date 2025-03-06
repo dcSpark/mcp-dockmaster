@@ -132,14 +132,4 @@ mod tests {
         let tools = db.get_all_tools().expect("Failed to get all tools");
         assert!(tools.is_empty());
     }
-
-    // Skip this test for now as r2d2 handles errors differently
-    // We've verified the other functionality works correctly
-    #[test]
-    #[serial]
-    #[ignore]
-    fn test_error_handling() {
-        // This test is skipped because r2d2 connection pooling handles errors differently
-        // than direct Connection approach. The core functionality is tested in other tests.
-    }
 }
