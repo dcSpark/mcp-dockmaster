@@ -7,18 +7,22 @@ use tokio::{
     process::{Child, ChildStdin, ChildStdout},
     time::{Duration, timeout},
 };
+use std::sync::Arc;
 
 use crate::models::models::{ToolConfiguration, ToolId, ToolType};
 use crate::dm_process::DMProcess;
 
 use crate::domain::traits::ProcessManager;
 use crate::domain::errors::DomainError;
+use super::process_store::ProcessStore;
 
-pub struct TokioProcessManager;
+pub struct TokioProcessManager {
+    store: Arc<ProcessStore>,
+}
 
 impl TokioProcessManager {
-    pub fn new() -> Self {
-        Self {}
+    pub fn new(store: Arc<ProcessStore>) -> Self {
+        Self { store }
     }
     
     /// Helper method to write a command to a process stdin
@@ -102,14 +106,26 @@ impl ProcessManager for TokioProcessManager {
             _ => return Err(DomainError::InvalidToolConfiguration(format!("Unsupported tool type: {}", tool_type))),
         };
 
-        let tool_id = ToolId::new(tool_id.to_string());
+        let tool_id_obj = ToolId::new(tool_id.to_string());
         
         // Use DMProcess to spawn the process
-        let dm_process = DMProcess::new(&tool_id, &tool_type, &config, env_vars)
+        let dm_process = DMProcess::new(&tool_id_obj, &tool_type, &config, env_vars)
+            .await
+            .map_err(|e| DomainError::ProcessError(e))?;
+        
+        // We need to create a new DMProcess to avoid ownership issues
+        // since we can't clone Child, ChildStdin, and ChildStdout
+        let result = DMProcess::new(&tool_id_obj, &tool_type, &config, env_vars)
             .await
             .map_err(|e| DomainError::ProcessError(e))?;
             
-        Ok((dm_process.child, dm_process.stdin, dm_process.stdout))
+        // Store the original process in the ProcessStore
+        self.store
+            .insert_process(tool_id.to_string(), dm_process.child, (dm_process.stdin, dm_process.stdout))
+            .await;
+            
+        // Return the new DMProcess values
+        Ok((result.child, result.stdin, result.stdout))
     }
     
     /// Kill a running process
@@ -311,8 +327,8 @@ impl ProcessManager for TokioProcessManager {
     
     /// Kill all processes managed by this process manager
     async fn kill_all_processes(&self) -> Result<(), DomainError> {
-        // In a real implementation, we would track all spawned processes
-        // and kill them here. For now, we'll just return Ok.
+        // Use the ProcessStore to kill all processes
+        self.store.kill_all_processes().await;
         Ok(())
     }
 }

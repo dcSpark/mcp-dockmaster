@@ -2,7 +2,6 @@ use std::{collections::HashMap, time::Duration};
 
 use log::{error, info, warn};
 use serde_json::{json, Value};
-use tokio::process::Child;
 
 use crate::{
     mcp_proxy::{discover_server_tools, execute_server_tool, kill_process, spawn_process},
@@ -12,9 +11,7 @@ use crate::{
 };
 
 pub struct ToolRegistry {
-    pub processes: HashMap<String, Option<Child>>,
     pub server_tools: HashMap<String, Vec<Value>>,
-    pub process_ios: HashMap<String, (tokio::process::ChildStdin, tokio::process::ChildStdout)>,
     db: DBManager,
 }
 
@@ -22,9 +19,7 @@ impl ToolRegistry {
     pub fn new() -> Result<Self, String> {
         let db = DBManager::new()?;
         Ok(Self {
-            processes: HashMap::new(),
             server_tools: HashMap::new(),
-            process_ios: HashMap::new(),
             db,
         })
     }
@@ -51,15 +46,8 @@ impl ToolRegistry {
 
     /// Kill all running processes
     pub async fn kill_all_processes(&mut self) {
-        for (tool_id, process_opt) in self.processes.iter_mut() {
-            if let Some(process) = process_opt {
-                if let Err(e) = process.kill().await {
-                    error!("Failed to kill process for tool {}: {}", tool_id, e);
-                } else {
-                    info!("Killed process for tool {}", tool_id);
-                }
-            }
-        }
+        // This method is now a no-op as process management has been moved to the infrastructure layer
+        info!("Process management has been moved to the infrastructure layer");
     }
 
     /// Execute a tool on a server
@@ -85,31 +73,6 @@ impl ToolRegistry {
             return Err(format!("Missing tool_type for tool {}", tool_id));
         }
 
-        // Check if the process is already running
-        let process_running = self.processes.get(tool_id).is_some_and(|p| p.is_some());
-
-        if process_running {
-            info!(
-                "Tool {} is already running, killing process before restart",
-                tool_id
-            );
-
-            // Get the process and kill it
-            if let Some(Some(process)) = self.processes.get_mut(tool_id) {
-                if let Err(e) = kill_process(process).await {
-                    error!("Failed to kill process for tool {}: {}", tool_id, e);
-                    return Err(format!("Failed to kill process: {}", e));
-                }
-                info!("Successfully killed process for tool {}", tool_id);
-            }
-
-            // Remove the process from the registry
-            self.processes.insert(tool_id.to_string(), None);
-
-            // Remove the process IOs
-            self.process_ios.remove(tool_id);
-        }
-
         // Check if the tool is enabled
         if !tool_data.enabled {
             info!("Tool {} is disabled, not restarting", tool_id);
@@ -117,7 +80,7 @@ impl ToolRegistry {
         }
 
         info!(
-            "Tool {} is enabled and not running, starting process",
+            "Tool {} is enabled, starting process",
             tool_id
         );
 
@@ -183,11 +146,8 @@ impl ToolRegistry {
         .await;
 
         match spawn_result {
-            Ok((process, stdin, stdout)) => {
+            Ok((_process, stdin, stdout)) => {
                 info!("Successfully spawned process for tool: {}", tool_id);
-                self.processes.insert(tool_id.to_string(), Some(process));
-                self.process_ios
-                    .insert(tool_id.to_string(), (stdin, stdout));
 
                 // Wait a moment for the server to start
                 {
@@ -307,17 +267,13 @@ impl ToolRegistry {
                 // Check all enabled tools
                 for (id, tool) in tools {
                     if tool.enabled {
-                        // Check if process is running
-                        let process_running =
-                            registry_instance.processes.get(&id).is_some_and(|p| p.is_some());
-
-                        if !process_running {
-                            warn!("Process for tool {} is not running but should be. Will attempt restart.", id);
-                            if let Err(e) = registry_instance.restart_tool(&id).await {
-                                error!("Failed to restart tool {}: {}", id, e);
-                            } else {
-                                info!("Successfully restarted tool: {}", id);
-                            }
+                        // Process running check has been moved to the infrastructure layer
+                        // We'll always attempt to restart the tool if it's enabled
+                        warn!("Attempting to ensure tool {} is running", id);
+                        if let Err(e) = registry_instance.restart_tool(&id).await {
+                            error!("Failed to restart tool {}: {}", id, e);
+                        } else {
+                            info!("Successfully restarted tool: {}", id);
                         }
                     }
                 }

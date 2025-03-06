@@ -18,13 +18,9 @@ pub async fn discover_server_tools(
 ) -> Result<Vec<Value>, String> {
     info!("discover_server_tools is deprecated, use ProcessManager::discover_server_tools instead");
     
-    // Create a process manager
-    let process_manager = TokioProcessManager::new();
-    
-    // Call the process manager's discover_server_tools method
-    process_manager.discover_server_tools(server_id, &mut registry.process_ios)
-        .await
-        .map_err(|e| e.to_string())
+    // This function is deprecated and should not be used
+    // Return an error indicating that this function is deprecated
+    Err("discover_server_tools is deprecated. Use the ProcessManager trait through AppContext instead.".to_string())
 }
 
 // Deprecated: Use ProcessManager::execute_server_tool instead
@@ -36,26 +32,9 @@ pub async fn execute_server_tool(
 ) -> Result<Value, MCPError> {
     info!("execute_server_tool is deprecated, use ProcessManager::execute_server_tool instead");
     
-    // Create a process manager
-    let process_manager = TokioProcessManager::new();
-    
-    // Call the process manager's execute_server_tool method
-    process_manager.execute_server_tool(server_id, tool_name, parameters, &mut registry.process_ios)
-        .await
-        .map_err(|e| match e {
-            crate::domain::errors::DomainError::ServerNotFound(s) => MCPError::ServerNotFound(s),
-            crate::domain::errors::DomainError::SerializationError(s) => MCPError::SerializationError(s),
-            crate::domain::errors::DomainError::StdinWriteError(s) => MCPError::StdinWriteError(s),
-            crate::domain::errors::DomainError::StdinFlushError(s) => MCPError::StdinFlushError(s),
-            crate::domain::errors::DomainError::StdoutReadError(s) => MCPError::StdoutReadError(s),
-            crate::domain::errors::DomainError::TimeoutError(s) => MCPError::TimeoutError(s),
-            crate::domain::errors::DomainError::ServerClosedConnection => MCPError::ServerClosedConnection,
-            crate::domain::errors::DomainError::NoResponse => MCPError::NoResponse,
-            crate::domain::errors::DomainError::JsonParseError(s) => MCPError::JsonParseError(s),
-            crate::domain::errors::DomainError::ToolExecutionError(s) => MCPError::ToolExecutionError(s),
-            crate::domain::errors::DomainError::NoResultField => MCPError::NoResultField,
-            _ => MCPError::UnknownError(format!("{:?}", e)),
-        })
+    // This function is deprecated and should not be used
+    // Return an error indicating that this function is deprecated
+    Err(MCPError::UnknownError("execute_server_tool is deprecated. Use the ProcessManager trait through AppContext instead.".to_string()))
 }
 
 // Deprecated: Use ProcessManager::spawn_process instead
@@ -74,24 +53,16 @@ pub async fn spawn_process(
 > {
     info!("spawn_process is deprecated, use ProcessManager::spawn_process instead");
     
-    // Create a process manager
-    let process_manager = TokioProcessManager::new();
-    
-    // Call the process manager's spawn_process method
-    process_manager.spawn_process(configuration, tool_id, tool_type, env_vars)
-        .await
-        .map_err(|e| e.to_string())
+    // This function is deprecated and should not be used
+    // Return an error indicating that this function is deprecated
+    Err("spawn_process is deprecated. Use the ProcessManager trait through AppContext instead.".to_string())
 }
 
 // Deprecated: Use ProcessManager::kill_process instead
 pub async fn kill_process(process: &mut tokio::process::Child) -> Result<(), String> {
     info!("kill_process is deprecated, use ProcessManager::kill_process instead");
     
-    // Create a process manager
-    let process_manager = TokioProcessManager::new();
-    
-    // Call the process manager's kill_process method
-    process_manager.kill_process(process)
-        .await
-        .map_err(|e| e.to_string())
+    // This function is deprecated and should not be used
+    // Return an error indicating that this function is deprecated
+    Err("kill_process is deprecated. Use the ProcessManager trait through AppContext instead.".to_string())
 }

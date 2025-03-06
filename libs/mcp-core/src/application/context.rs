@@ -5,7 +5,7 @@ use crate::application::services::ToolService;
 use crate::domain::traits::{ProcessManager, ToolRepository};
 use crate::database::DBManager;
 use crate::infrastructure::persistence::SqliteToolRepository;
-use crate::infrastructure::process_management::TokioProcessManager;
+use crate::infrastructure::process_management::{TokioProcessManager, ProcessStore};
 use crate::registry::ToolRegistry;
 
 /// Application context that holds all services and repositories
@@ -42,8 +42,11 @@ impl AppContext {
         let db_manager = DBManager::new()
             .map_err(|e| format!("Failed to create database manager: {}", e))?;
         
-        // Create the process manager
-        let process_manager = Arc::new(TokioProcessManager::new());
+        // Create the process store
+        let process_store = Arc::new(ProcessStore::new());
+        
+        // Create the process manager with the process store
+        let process_manager = Arc::new(TokioProcessManager::new(process_store.clone()));
         
         // Create the tool registry for backward compatibility
         let registry = ToolRegistry::new()?;
