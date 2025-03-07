@@ -577,7 +577,7 @@ const InstalledServers: React.FC = () => {
               <div className="tool-header">
                 <h3 className="tool-title">{tool.name}</h3>
                 <div className="tool-status">
-                  {tool.config && Object.keys(tool.config.env).length > 0 && (
+                  {tool.config && tool.config.env && Object.keys(tool.config.env).length > 0 && (
                     <button 
                       className="config-button"
                       onClick={(e) => {
