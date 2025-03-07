@@ -44,7 +44,6 @@ mod tests {
             entry_point: None,
             configuration: None,
             distribution: None,
-            config: None,
             env_configs: None,
         };
 
@@ -82,7 +81,6 @@ mod tests {
             entry_point: None,
             configuration: None,
             distribution: None,
-            config: None,
             env_configs: None,
         };
 
@@ -94,7 +92,6 @@ mod tests {
             entry_point: None,
             configuration: None,
             distribution: None,
-            config: None,
             env_configs: None,
         };
 
@@ -125,7 +122,6 @@ mod tests {
             entry_point: None,
             configuration: None,
             distribution: None,
-            config: None,
             env_configs: None,
         };
 

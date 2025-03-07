@@ -46,8 +46,10 @@ interface ToolUpdateResponse {
 
 interface ToolConfigUpdateRequest {
   tool_id: string;
-  config: {
-    env: Record<string, string>;
+  configuration: {
+    command: string;
+    args?: string[];
+    env?: Record<string, string>;
   };
 }
 
@@ -162,4 +164,4 @@ export class MCPClient {
   }
 }
 
-export default MCPClient; 
+export default MCPClient;  

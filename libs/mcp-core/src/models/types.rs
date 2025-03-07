@@ -51,36 +51,19 @@ pub struct ToolConfigUpdateResponse {
     pub success: bool,
     pub message: String,
 }
-/// Tool configuration for command and arguments
+/// Tool configuration for command, arguments, and environment variables
 #[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct ToolConfiguration {
     pub command: String,
     #[serde(default)]
     pub args: Option<Vec<String>>,
     #[serde(default)]
-    pub env: Option<HashMap<String, ToolEnvironment>>,
-}
-
-#[derive(Clone, Debug, Serialize, Deserialize)]
-pub struct ToolEnvironment {
-    #[serde(default)]
-    pub description: String,
-    #[serde(default)]
-    pub default: Option<String>,
-    #[serde(default)]
-    pub required: bool,
-}
-
-/// Tool config for environment variables and optional command
-#[derive(Clone, Debug, Serialize, Deserialize)]
-pub struct ToolConfig {
-    #[serde(default)]
     pub env: Option<HashMap<String, String>>,
-    #[serde(default)]
-    pub command: Option<String>,
-    #[serde(default)]
-    pub args: Option<Vec<String>>,
 }
+
+
+
+
 
 /// Tool definition with all properties
 #[derive(Clone, Debug, Serialize, Deserialize)]
@@ -95,8 +78,6 @@ pub struct Tool {
     pub configuration: Option<ToolConfiguration>,
     #[serde(default)]
     pub distribution: Option<Distribution>,
-    #[serde(default)]
-    pub config: Option<ToolConfig>,
     #[serde(default)]
     #[serde(rename = "authentication")]
     pub env_configs: Option<EnvConfigs>,
@@ -160,7 +141,7 @@ pub struct ToolUpdateResponse {
 #[derive(Deserialize)]
 pub struct ToolConfigUpdateRequest {
     pub tool_id: String,
-    pub config: ToolConfig,
+    pub configuration: ToolConfiguration,
 }
 
 /// MCP tool uninstall request
