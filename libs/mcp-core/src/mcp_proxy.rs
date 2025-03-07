@@ -315,7 +315,7 @@ pub async fn spawn_process(
     let config = ToolConfiguration {
         command: command.to_string(),
         args: Some(args),
-        env: env_vars.map(|vars| vars.clone()),
+        env: env_vars.cloned(),
     };
 
     let tool_type = match tool_type {
