@@ -1,0 +1,5 @@
+{
+  "singleQuote": false,
+  "tailwindFunctions": ["clsx", "cn", "cva"],
+  "plugins": ["prettier-plugin-tailwindcss"]
+}
