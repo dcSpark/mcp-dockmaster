@@ -9,7 +9,7 @@ use std::path::PathBuf;
 use std::sync::Arc;
 
 use crate::models::tool_db::{DBTool, DBToolEnv, NewTool, NewToolEnv, UpdateTool};
-use crate::models::types::{Distribution, Tool, ToolConfiguration, ToolEnvironment};
+use crate::models::types::{Distribution, Tool, ToolConfiguration};
 use crate::schema::server_tools::dsl as server_dsl;
 use crate::schema::tool_env::dsl as env_dsl;
 use crate::schema::tools::dsl as tools_dsl;
@@ -147,14 +147,7 @@ impl DBManager {
         // Convert environment variables into a HashMap
         let mut env_map = HashMap::new();
         for row in env_rows {
-            env_map.insert(
-                row.env_key,
-                ToolEnvironment {
-                    description: row.env_description,
-                    default: Some(row.env_value),
-                    required: row.env_required,
-                },
-            );
+            env_map.insert(row.env_key, row.env_value);
         }
 
         // 3) Convert DBTool -> domain-level Tool
@@ -189,7 +182,6 @@ impl DBManager {
                 },
             }),
             distribution,
-            config: None,
             env_configs: None,
         };
 
@@ -214,17 +206,10 @@ impl DBManager {
             .map_err(|e| format!("Failed to query environment variables: {}", e))?;
 
         // Group environment variables by tool_id
-        let mut env_map_by_tool: HashMap<String, HashMap<String, ToolEnvironment>> = HashMap::new();
+        let mut env_map_by_tool: HashMap<String, HashMap<String, String>> = HashMap::new();
         for row in all_env_rows {
             let tool_env_map = env_map_by_tool.entry(row.tool_id.clone()).or_default();
-            tool_env_map.insert(
-                row.env_key.clone(),
-                ToolEnvironment {
-                    description: row.env_description,
-                    default: Some(row.env_value),
-                    required: row.env_required,
-                },
-            );
+            tool_env_map.insert(row.env_key.clone(), row.env_value);
         }
 
         // 3) Convert DBTool -> domain-level Tool for each tool
@@ -264,7 +249,6 @@ impl DBManager {
                     },
                 }),
                 distribution,
-                config: None,
                 env_configs: None,
             };
 
@@ -356,15 +340,12 @@ impl DBManager {
             if let Some(env) = &config.env {
                 let new_env_rows: Vec<NewToolEnv> = env
                     .iter()
-                    .map(|(k, v)| {
-                        let default_value = v.default.clone().unwrap_or_default();
-                        NewToolEnv {
-                            tool_id: tool_id_str.to_string(),
-                            env_key: k.to_string(),
-                            env_value: default_value,
-                            env_description: v.description.clone(),
-                            env_required: v.required,
-                        }
+                    .map(|(k, v)| NewToolEnv {
+                        tool_id: tool_id_str.to_string(),
+                        env_key: k.to_string(),
+                        env_value: v.to_string(),
+                        env_description: "".to_string(), // Since we're using String map now
+                        env_required: false, // Default to false since we don't have this info
                     })
                     .collect();
 

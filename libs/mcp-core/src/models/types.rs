@@ -51,6 +51,7 @@ pub struct ToolConfigUpdateResponse {
     pub success: bool,
     pub message: String,
 }
+
 /// Tool configuration for command, arguments, and environment variables
 #[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct ToolConfiguration {
@@ -60,10 +61,6 @@ pub struct ToolConfiguration {
     #[serde(default)]
     pub env: Option<HashMap<String, String>>,
 }
-
-
-
-
 
 /// Tool definition with all properties
 #[derive(Clone, Debug, Serialize, Deserialize)]
