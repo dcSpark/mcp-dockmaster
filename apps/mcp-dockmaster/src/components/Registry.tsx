@@ -1,9 +1,9 @@
-import React, { useState, useEffect } from 'react';
-import { useVirtualizer } from '@tanstack/react-virtual';
-import MCPClient from '../lib/mcpClient';
-import { getAvailableTools } from '../lib/registry';
-import { TOOL_UNINSTALLED, TOOL_INSTALLED, dispatchToolInstalled, dispatchToolUninstalled } from '../lib/events';
-import './Registry.css';
+import React, { useState, useEffect } from "react";
+import { useVirtualizer } from "@tanstack/react-virtual";
+import MCPClient from "../lib/mcpClient";
+import { getAvailableTools } from "../lib/registry";
+import { TOOL_UNINSTALLED, TOOL_INSTALLED, dispatchToolInstalled, dispatchToolUninstalled } from "../lib/events";
+import "./Registry.css";
 
 // Import runner icons
 import dockerIcon from "../assets/docker.svg";
@@ -48,8 +48,6 @@ const Registry: React.FC = () => {
   const [uninstalling, setUninstalling] = useState<string | null>(null);
   const [searchTerm, setSearchTerm] = useState("");
 
-  const [searchTerm, setSearchTerm] = useState('');
-
   // Load tools on initial mount
   useEffect(() => {
     loadAvailableTools();
@@ -63,13 +61,12 @@ const Registry: React.FC = () => {
 
     document.addEventListener("visibilitychange", handleVisibilityChange);
 
-
-    document.addEventListener('visibilitychange', handleVisibilityChange);
+    document.addEventListener("visibilitychange", handleVisibilityChange);
 
     // Also reload when the window regains focus
     window.addEventListener("focus", loadAvailableTools);
 
-    window.addEventListener('focus', loadAvailableTools);
+    window.addEventListener("focus", loadAvailableTools);
 
     return () => {
       document.removeEventListener("visibilitychange", handleVisibilityChange);
@@ -120,9 +117,6 @@ const Registry: React.FC = () => {
         const isInstalled = installedTools.some(
           (installedTool) =>
             installedTool.id === tool.id || installedTool.name.toLowerCase() === tool.name.toLowerCase()
-          installedTool =>
-            installedTool.id === tool.id ||
-          installedTool.name.toLowerCase() === tool.name.toLowerCase()
         );
 
         // Use lowercase name as key to avoid case-sensitivity issues
@@ -153,9 +147,6 @@ const Registry: React.FC = () => {
     const installedTools = await MCPClient.listTools();
     const isAlreadyInstalled = installedTools.some(
       (installedTool) => installedTool.id === tool.id || installedTool.name.toLowerCase() === tool.name.toLowerCase()
-      installedTool =>
-        installedTool.id === tool.id ||
-      installedTool.name.toLowerCase() === tool.name.toLowerCase()
     );
 
     if (isAlreadyInstalled) {
@@ -279,31 +270,33 @@ const Registry: React.FC = () => {
 
   const getRunnerIcon = (runtime: string) => {
     switch (runtime.toLowerCase()) {
-      case 'docker':
-      return <img src={dockerIcon} alt="Docker" className="runner-icon" title="Docker" />;
-      case 'node':
-      return <img src={nodeIcon} alt="Node.js" className="runner-icon" title="Node.js" />;
-      case 'python':
-      return <img src={pythonIcon} alt="Python/UV" className="runner-icon" title="Python/UV" />;
+      case "docker":
+        return <img src={dockerIcon} alt="Docker" className="runner-icon" title="Docker" />;
+      case "node":
+        return <img src={nodeIcon} alt="Node.js" className="runner-icon" title="Node.js" />;
+      case "python":
+        return <img src={pythonIcon} alt="Python/UV" className="runner-icon" title="Python/UV" />;
       default:
-      return <span className="runner-icon unknown">?</span>;
+        return <span className="runner-icon unknown">?</span>;
     }
   };
   const parentRef = React.useRef<HTMLDivElement>(null);
 
   const filteredTools = searchTerm
-  ? availableTools.filter(tool =>
-    tool.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-    tool.description.toLowerCase().includes(searchTerm.toLowerCase())
-  )
-  : availableTools;
+    ? availableTools.filter(
+        (tool) =>
+          tool.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
+          tool.description.toLowerCase().includes(searchTerm.toLowerCase())
+      )
+    : availableTools;
 
   // Set up the virtualizer
   const rowVirtualizer = useVirtualizer({
     count: filteredTools.length,
     getScrollElement: () => parentRef.current,
-    estimateSize: () => 120, // Estimated height of each tool item in pixels
+    estimateSize: () => 170, // Estimated height of each tool item in pixels
     overscan: 1, // Number of items to render beyond the visible area
+    gap: 16,
   });
 
   return (
@@ -321,7 +314,7 @@ const Registry: React.FC = () => {
           type="text"
           value={searchTerm}
           onChange={(e) => setSearchTerm(e.target.value)}
-          className="size-full  pl-10 pr-4 py-2 bg-background text-foreground border placeholder:text-muted-foreground  rounded-lg focus:outline-none focus:ring-1 focus:ring-neutral-900/60   "
+          className="size-full pl-10 pr-4 py-2 bg-background text-foreground border placeholder:text-muted-foreground  rounded-lg focus:outline-none focus:ring-1 focus:ring-neutral-900/60   "
           placeholder="Search for tools..."
           aria-label="Search for tools"
         />
@@ -333,80 +326,95 @@ const Registry: React.FC = () => {
           ))}
         </div>
       ) : (
-        <div ref={parentRef} className="tools-list-container" style={{ height: '600px', overflow: 'auto' }}>
-          <div
-            className="tools-list"
-            style={{
-              height: `${rowVirtualizer.getTotalSize()}px`,
-              width: '100%',
-              position: 'relative',
-              overflow: 'hidden'
-            }}
-          >
-            {filteredTools.length === 0 ? (
-              <div className="empty-state">
-                <p>No tools found matching your search criteria.</p>
+        <>
+          {filteredTools.length === 0 ? (
+            <div className="py-10 text-center text-sm text-muted-foreground">
+              <p>No tools found matching your search criteria.</p>
+            </div>
+          ) : (
+            <div ref={parentRef} style={{ height: "100%", overflow: "auto", contain: "strict" }}>
+              <div
+                style={{
+                  height: `${rowVirtualizer.getTotalSize()}px`,
+                  width: "100%",
+                  position: "relative",
+                  overflow: "hidden",
+                }}
+              >
+                {rowVirtualizer.getVirtualItems().map((virtualRow) => {
+                  const tool = filteredTools[virtualRow.index];
+                  return (
+                    <div
+                      key={tool.id}
+                      // className=" top-0 left-0 pr-4"
+                      style={{
+                        position: "absolute",
+                        width: "100%",
+                        height: `${virtualRow.size}px`,
+                        transform: `translateY(${virtualRow.start}px)`,
+                        boxSizing: "border-box",
+                      }}
+                    >
+                      <Card className="overflow-hidden gap-4 w-full border-slate-200 shadow-none ">
+                        <CardHeader className="pb-0">
+                          <div className="flex justify-between items-start">
+                            <div className="flex items-center gap-3">
+                              <div className="bg-muted rounded-md p-1 size-8 ">{getRunnerIcon(tool.runtime)}</div>
+
+                              <CardTitle className="text-lg">{tool.name}</CardTitle>
+                              {tool.installed && (
+                                <Badge variant="outline" className="ml-auto">
+                                  Installed
+                                </Badge>
+                              )}
+                            </div>
+                          </div>
+                        </CardHeader>
+                        <CardContent>
+                          <CardDescription className="line-clamp-2">{tool.description}</CardDescription>
+                        </CardContent>
+                        <CardFooter className="pt-0 flex justify-between items-center">
+                          {tool.publisher && (
+                            <div className="flex items-center gap-1 text-sm text-muted-foreground">
+                              <span>By </span>{" "}
+                              <a
+                                href={tool.publisher.url}
+                                target="_blank"
+                                rel="noopener noreferrer"
+                                className="underline text-foreground"
+                              >
+                                {tool.publisher.name}
+                              </a>
+                            </div>
+                          )}
+                          {tool.installed ? (
+                            <Button
+                              variant="destructive"
+                              onClick={() => uninstallTool(tool.id)}
+                              disabled={uninstalling === tool.id}
+                              type="button"
+                            >
+                              {uninstalling === tool.id ? "Uninstalling..." : "Uninstall"}
+                            </Button>
+                          ) : (
+                            <Button
+                              variant="outline"
+                              type="button"
+                              onClick={() => !tool.installed && installTool(tool)}
+                              disabled={tool.installed || installing === tool.id}
+                            >
+                              {tool.installed ? "Installed" : installing === tool.id ? "Installing..." : "Install"}
+                            </Button>
+                          )}
+                        </CardFooter>
+                      </Card>
+                    </div>
+                  );
+                })}
               </div>
-            ) : (
-              rowVirtualizer.getVirtualItems().map(virtualRow => {
-                const tool = filteredTools[virtualRow.index];
-                return (
-                  <div
-                    key={tool.id}
-                    className="tool-item top-0 left-0 pr-4"
-                    style={{
-                      position: 'absolute',
-                      width: '100%',
-                      height: `${virtualRow.size}px`,
-                      transform: `translateY(${virtualRow.start}px)`,
-                      boxSizing: 'border-box',
-                    }}
-                  >
-                    <div className="tool-info">
-                      <div className="tool-header">
-                        <h3 className="tool-name">{tool.name}</h3>
-                        <div className="tool-metadata">
-                          {getRunnerIcon(tool.runtime)}
-                        </div>
-                      </div>
-                      <p className="tool-description">{tool.description}</p>
-                      <div className="tool-publisher">
-                        <span>By </span>
-                        <a
-                          href={tool.publisher.url}
-                          target="_blank"
-                          rel="noopener noreferrer"
-                          className="publisher-link"
-                        >
-                          {tool.publisher.name}
-                        </a>
-                      </div>
-                    </div>
-                    <div className="tool-action">
-                      {tool.installed ? (
-                        <button
-                          className="uninstall-button"
-                          onClick={() => uninstallTool(tool.id)}
-                          disabled={uninstalling === tool.id}
-                        >
-                          {uninstalling === tool.id ? 'Uninstalling...' : 'Uninstall'}
-                        </button>
-                      ) : (
-                        <button
-                          className={`install-button ${tool.installed ? 'installed' : ''}`}
-                          onClick={() => !tool.installed && installTool(tool)}
-                          disabled={tool.installed || installing === tool.id}
-                        >
-                          {tool.installed ? 'Installed' : installing === tool.id ? 'Installing...' : 'Install'}
-                        </button>
-                      )}
-                    </div>
-                  </div>
-                )
-              })
-            )}
-          </div>
-        </div>
+            </div>
+          )}
+        </>
       )}
     </div>
   );

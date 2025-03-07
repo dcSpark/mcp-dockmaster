@@ -173,8 +173,7 @@ const InstalledServers: React.FC = () => {
             server_id: serverTool?.server_id,
             server_name: server?.name,
             process_running: server?.process_running,
-            config: tool.configuration || { env: {} }
-            config: tool.config || { env: {} },
+            config: tool.configuration || { env: {} },
           });
         }
       });
@@ -560,43 +559,43 @@ const InstalledServers: React.FC = () => {
       {loading ? (
         <div className="loading-message">Loading installed applications...</div>
       ) : installedTools.length === 0 ? (
-        <div className="empty-state">
+        <div className="py-10 flex flex-col gap-2 items-center justify-center text-muted-foreground">
           <p>You don't have any applications installed yet.</p>
           <p>Visit the AI App Store to discover and install applications.</p>
         </div>
       ) : (
-        <div className="tools-grid">
-          {installedTools.map(tool => (
-            <div
-              key={tool.id}
-              className={`tool-card ${tool.enabled ? 'enabled' : 'disabled'} ${expandedToolId === tool.id ? 'expanded' : ''}`}
-            >
-              <div className="tool-header">
-                <h3 className="tool-title">{tool.name}</h3>
-                <div className="tool-status">
-                  {tool.config && tool.config.env && Object.keys(tool.config.env).length > 0 && (
-                    <button
-                      className="config-button"
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        startEditingEnvVars(tool.id, e);
-                      }}
-                      title="Configure Environment Variables"
-                    >
-                      <WrenchIcon />
-                    </button>
-                  )}
-                  <span
-                    className={`app-status-indicator ${tool.enabled ? 'active' : 'inactive'}`}
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      toggleToolStatus(tool.id);
-                    }}
-                    role="switch"
-                    aria-checked={tool.enabled}
-                    tabIndex={0}
-                  ></span>
-                  <span>{tool.enabled ? 'Enabled' : 'Disabled'}</span>
+        // <div className="tools-grid">
+        //   {installedTools.map(tool => (
+        //     <div
+        //       key={tool.id}
+        //       className={`tool-card ${tool.enabled ? 'enabled' : 'disabled'} ${expandedToolId === tool.id ? 'expanded' : ''}`}
+        //     >
+        //       <div className="tool-header">
+        //         <h3 className="tool-title">{tool.name}</h3>
+        //         <div className="tool-status">
+        //           {tool.config && tool.config.env && Object.keys(tool.config.env).length > 0 && (
+        //             <button
+        //               className="config-button"
+        //               onClick={(e) => {
+        //                 e.stopPropagation();
+        //                 startEditingEnvVars(tool.id, e);
+        //               }}
+        //               title="Configure Environment Variables"
+        //             >
+        //               <WrenchIcon />
+        //             </button>
+        //           )}
+        //           <span
+        //             className={`app-status-indicator ${tool.enabled ? 'active' : 'inactive'}`}
+        //             onClick={(e) => {
+        //               e.stopPropagation();
+        //               toggleToolStatus(tool.id);
+        //             }}
+        //             role="switch"
+        //             aria-checked={tool.enabled}
+        //             tabIndex={0}
+        //           ></span>
+        //           <span>{tool.enabled ? 'Enabled' : 'Disabled'}</span>
         <div className="grid grid-cols-2 gap-6 w-full">
           {installedTools.map((tool) => (
             <Card className="overflow-hidden border-slate-200 shadow-none ">
