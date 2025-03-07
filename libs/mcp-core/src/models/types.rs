@@ -95,8 +95,8 @@ pub struct ToolRegistrationRequest {
     pub tool_name: String,
     pub description: String,
     pub tool_type: String, // "node", "python", "docker"
-    pub configuration: Option<Value>,
-    pub distribution: Option<Value>,
+    pub configuration: Option<ToolConfiguration>,
+    pub distribution: Option<Distribution>,
 }
 
 /// MCP tool registration response

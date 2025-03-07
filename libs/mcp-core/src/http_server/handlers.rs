@@ -10,7 +10,7 @@ use tokio::sync::RwLock;
 
 use crate::mcp_proxy::register_tool;
 use crate::mcp_state::MCPState;
-use crate::types::ToolRegistrationRequest;
+use crate::models::types::{Distribution, ToolConfiguration, ToolRegistrationRequest};
 
 #[derive(Deserialize)]
 pub struct JsonRpcRequest {
@@ -214,17 +214,22 @@ async fn handle_register_tool(state: Arc<RwLock<MCPState>>, params: Value) -> Re
                 .to_string();
 
             let configuration = tool.get("config").map(|config| {
-                json!({
-                    "command": config.get("command").unwrap_or(&json!("error")),
-                    "args": config.get("args").unwrap_or(&json!([]))
-                })
+                ToolConfiguration {
+                    command: config.get("command").and_then(|v| v.as_str()).map(|s| s.to_string()),
+                    args: config.get("args").and_then(|v| v.as_array()).map(|args| {
+                        args.iter()
+                            .filter_map(|arg| arg.as_str().map(|s| s.to_string()))
+                            .collect()
+                    }),
+                    env: None,
+                }
             });
 
             let distribution = tool.get("distribution").map(|dist| {
-                json!({
-                    "type": dist.get("type").unwrap_or(&json!("error")),
-                    "package": dist.get("package").unwrap_or(&json!("error"))
-                })
+                Distribution {
+                    r#type: dist.get("type").and_then(|v| v.as_str()).unwrap_or("").to_string(),
+                    package: dist.get("package").and_then(|v| v.as_str()).unwrap_or("").to_string(),
+                }
             });
 
             let tool = ToolRegistrationRequest {

@@ -1,7 +1,7 @@
 use mcp_core::{
     mcp_state::MCPState,
     models::types::{
-        DiscoverServerToolsRequest, DiscoverServerToolsResponse, ToolConfigUpdateRequest,
+        DiscoverServerToolsRequest, DiscoverServerToolsResponse, Tool, ToolConfigUpdateRequest,
         ToolConfigUpdateResponse, ToolExecutionRequest, ToolExecutionResponse,
         ToolRegistrationRequest, ToolRegistrationResponse, ToolUninstallRequest,
         ToolUninstallResponse, ToolUpdateRequest, ToolUpdateResponse,
@@ -21,13 +21,13 @@ pub async fn register_tool(
 
 /// List all registered tools
 #[tauri::command]
-pub async fn list_tools(state: State<'_, MCPState>) -> Result<Vec<Value>, String> {
+pub async fn list_tools(state: State<'_, MCPState>) -> Result<Vec<Tool>, String> {
     mcp_core::mcp_proxy::list_tools(state.inner()).await
 }
 
 /// List all available tools from all running MCP servers
 #[tauri::command]
-pub async fn list_all_server_tools(state: State<'_, MCPState>) -> Result<Vec<Value>, String> {
+pub async fn list_all_server_tools(state: State<'_, MCPState>) -> Result<Vec<Tool>, String> {
     mcp_core::mcp_proxy::list_all_server_tools(state.inner()).await
 }
 
