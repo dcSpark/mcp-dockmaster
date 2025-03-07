@@ -566,7 +566,7 @@ const InstalledServers: React.FC = () => {
       ) : (
         <div className="grid grid-cols-2 gap-6 w-full">
           {installedTools.map((tool) => (
-            <Card className="overflow-hidden border-slate-200 ">
+            <Card className="overflow-hidden border-slate-200 shadow-none ">
               <CardHeader className="pb-3">
                 <div className="flex justify-between items-start">
                   <CardTitle className="text-lg">{tool.name}</CardTitle>

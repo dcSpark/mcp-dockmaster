@@ -290,7 +290,7 @@ const Registry: React.FC = () => {
         <p className="text-sm text-muted-foreground">Discover and install AI applications and MCP tools.</p>
       </div>
 
-      <div className="relative flex-1 h-[50px]">
+      <div className="relative flex-1 max-h-12 h-full min-h-12 shrink-0">
         <div className="absolute top-4 left-3 flex items-center pointer-events-none">
           <Search size={18} className="text-gray-400" />
         </div>
@@ -298,7 +298,7 @@ const Registry: React.FC = () => {
           type="text"
           value={searchTerm}
           onChange={(e) => setSearchTerm(e.target.value)}
-          className="w-full pl-10 pr-4 py-3 bg-background text-foreground border placeholder:text-muted-foreground  rounded-xl focus:outline-none focus:ring-1 focus:ring-neutral-900/60   "
+          className="size-full  pl-10 pr-4 py-2 bg-background text-foreground border placeholder:text-muted-foreground  rounded-lg focus:outline-none focus:ring-1 focus:ring-neutral-900/60   "
           placeholder="Search for tools..."
           aria-label="Search for tools"
         />
@@ -317,7 +317,7 @@ const Registry: React.FC = () => {
             </div>
           ) : (
             filteredTools.map((tool) => (
-              <Card className="overflow-hidden transition-all shadow-none">
+              <Card className="overflow-hidden gap-4 border-slate-200 shadow-none ">
                 <CardHeader className="pb-0">
                   <div className="flex justify-between items-start">
                     <div className="flex items-center gap-3">
@@ -339,7 +339,12 @@ const Registry: React.FC = () => {
                   {tool.publisher && (
                     <div className="flex items-center gap-1 text-sm text-muted-foreground">
                       <span>By </span>{" "}
-                      <a href={tool.publisher.url} target="_blank" rel="noopener noreferrer" className="underline">
+                      <a
+                        href={tool.publisher.url}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="underline text-foreground"
+                      >
                         {tool.publisher.name}
                       </a>
                     </div>
@@ -349,12 +354,14 @@ const Registry: React.FC = () => {
                       variant="destructive"
                       onClick={() => uninstallTool(tool.id)}
                       disabled={uninstalling === tool.id}
+                      type="button"
                     >
                       {uninstalling === tool.id ? "Uninstalling..." : "Uninstall"}
                     </Button>
                   ) : (
                     <Button
                       variant="outline"
+                      type="button"
                       onClick={() => !tool.installed && installTool(tool)}
                       disabled={tool.installed || installing === tool.id}
                     >

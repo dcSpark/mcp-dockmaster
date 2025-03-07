@@ -133,7 +133,7 @@ const Home: React.FC = () => {
 
         <Collapsible className="mt-4 space-y-2" open={showMCPConfig} onOpenChange={setShowMCPConfig}>
           <CollapsibleTrigger asChild>
-            <Button variant="outline" className="flex w-full items-center justify-between gap-2">
+            <Button variant="outline" className="shadow-none flex w-full items-center justify-between gap-2">
               <span className="flex items-center gap-2">
                 <ArrowRight className="h-4 w-4" />
                 Show MCP Configuration
