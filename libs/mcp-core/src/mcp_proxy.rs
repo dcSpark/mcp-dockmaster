@@ -555,7 +555,7 @@ pub async fn list_all_server_tools(mcp_state: &MCPState) -> Result<Vec<Tool>, St
     let server_tools = mcp_state.server_tools.read().await;
     let mut all_tools = Vec::new();
 
-    for (_, tools) in &*server_tools {
+    for tools in server_tools.values() {
         for tool_value in tools {
             // Convert the Value to a Tool struct
             if let Ok(tool) = serde_json::from_value::<Tool>(tool_value.clone()) {
