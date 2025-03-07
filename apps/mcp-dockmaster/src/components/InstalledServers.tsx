@@ -10,7 +10,7 @@ import { Switch } from "./ui/switch";
 import { Button } from "./ui/button";
 import { Settings, Settings2 } from "lucide-react";
 import { Tooltip, TooltipContent, TooltipTrigger } from "./ui/tooltip";
-import { Dialog, DialogContent, DialogTrigger } from "./ui/dialog";
+import { Badge } from "./ui/badge";
 
 // Add a simple notification component
 interface NotificationProps {
@@ -429,11 +429,14 @@ const InstalledServers: React.FC = () => {
     return (
       <div className="server-info-container">
         <div className="server-header">
-          <h4>Server Information</h4>
+          <h4 className="!text-sm font-medium">Server Information</h4>
           <div className="server-status-badge">
-            <span className={server.process_running ? "running" : "stopped"}>
+            <Badge
+              variant="outline"
+              className={server.process_running ? "bg-emerald-500 text-white" : "bg-red-500 text-white"}
+            >
               {server.process_running ? "Running" : "Stopped"}
-            </span>
+            </Badge>
           </div>
           <button
             className="discover-button"
@@ -447,12 +450,12 @@ const InstalledServers: React.FC = () => {
         </div>
         {toolsForServer.length > 0 ? (
           <div className="server-tools">
-            <h5>Available Tools</h5>
+            <h5 className="!text-sm font-medium">Available Tools</h5>
             <div className="server-tools-grid">
               {toolsForServer.map((tool) => (
-                <div key={tool.proxy_id} className="server-tool-card">
-                  <h6>{tool.name}</h6>
-                  <p>{tool.description}</p>
+                <div key={tool.proxy_id} className="server-tool-card gap-1">
+                  <h6 className="!text-sm font-medium !mb-0">{tool.name}</h6>
+                  <p className="!text-xs">{tool.description}</p>
                 </div>
               ))}
             </div>
@@ -566,9 +569,9 @@ const InstalledServers: React.FC = () => {
       ) : (
         <div className="grid grid-cols-2 gap-6 w-full">
           {installedTools.map((tool) => (
-            <Card className="overflow-hidden border-slate-200 shadow-none ">
-              <CardHeader className="pb-3">
-                <div className="flex justify-between items-start">
+            <Card className="overflow-hidden border-slate-200 shadow-none gap-3 ">
+              <CardHeader className="">
+                <div className="flex justify-between items-center">
                   <CardTitle className="text-lg">{tool.name}</CardTitle>
                   <div className="flex items-center gap-2">
                     {tool.config && Object.keys(tool.config.env).length > 0 && (
@@ -609,7 +612,7 @@ const InstalledServers: React.FC = () => {
                 </div>
               </CardHeader>
 
-              <CardContent className="pb-3 space-y-3">
+              <CardContent className="pb-0 space-y-3">
                 <CardDescription className="line-clamp-2 mt-1">{tool.description}</CardDescription>
                 {/* {tool.server_id ? (
                   <div className="flex items-center gap-1.5">
