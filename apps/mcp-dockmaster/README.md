@@ -1,4 +1,4 @@
-# Shinkai AI App Manager
+# MPC Dockmaster
 
 A desktop application for managing AI applications and Model Context Protocol (MCP) tools. Built with Tauri, React, and TypeScript.
 
@@ -12,6 +12,7 @@ A desktop application for managing AI applications and Model Context Protocol (M
 ## Prerequisites
 
 Before you begin, ensure you have the following installed:
+
 - [Node.js](https://nodejs.org/) (v16 or later)
 - [Rust](https://www.rust-lang.org/tools/install)
 - Platform-specific dependencies for Tauri:
@@ -57,4 +58,4 @@ This will generate platform-specific installers in the `src-tauri/target/release
 
 ## Integration with Claude
 
-Claude is automatically connected to Shinkai AI App Manager. After making changes to your apps and tools, refresh Claude by pressing `⌘+R` (macOS) or using the refresh button in the Claude app.
+Claude is automatically connected to MPC Dockmaster. After making changes to your apps and tools, refresh Claude by pressing `⌘+R` (macOS) or using the refresh button in the Claude app.

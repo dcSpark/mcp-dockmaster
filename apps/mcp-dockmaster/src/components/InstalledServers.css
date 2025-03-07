@@ -135,7 +135,7 @@
 }
 
 .app-status-indicator::after {
-  content: '';
+  content: "";
   position: absolute;
   top: 2px;
   left: 2px;
@@ -219,7 +219,7 @@
 
 /* Expand indicator */
 .expand-indicator {
-  color: #0d6efd;
+  color: #000;
   font-size: 0.85rem;
   display: flex;
   align-items: center;
@@ -298,7 +298,9 @@
   font-size: 1.1rem;
 }
 
-.server-name, .server-status, .tool-count {
+.server-name,
+.server-status,
+.tool-count {
   margin: 0.5rem 0;
   font-size: 0.9rem;
 }
@@ -518,8 +520,12 @@
 
 /* Animation for popup */
 @keyframes fadeIn {
-  from { opacity: 0; }
-  to { opacity: 1; }
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
 }
 
 /* Installed Apps Section */
@@ -651,8 +657,7 @@
   margin-top: 1rem;
   margin-bottom: 1rem;
   border-top: 1px solid #e9ecef;
-  padding: 1rem;
-  display: block;
+  padding: 1rem 0.5rem;
   width: auto;
   background-color: #f8f9fa;
   border-radius: 6px;
@@ -661,8 +666,14 @@
 }
 
 @keyframes fadeIn {
-  from { opacity: 0; transform: translateY(-10px); }
-  to { opacity: 1; transform: translateY(0); }
+  from {
+    opacity: 0;
+    transform: translateY(-10px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
 }
 
 .server-info-container .server-header {
@@ -929,4 +940,4 @@
   font-size: 18px;
   cursor: pointer;
   margin-left: 10px;
-} 
+}

@@ -1,16 +1,5 @@
-.about-container {
-  max-width: 800px;
-  margin: 0 auto;
-  padding: 2rem;
-}
-
-.about-section {
-  margin-bottom: 2rem;
-}
-
 .about-section h2 {
   margin-bottom: 1rem;
-  color: #333;
   border-bottom: 1px solid #eee;
   padding-bottom: 0.5rem;
 }
