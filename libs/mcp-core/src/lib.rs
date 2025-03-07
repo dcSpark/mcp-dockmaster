@@ -5,6 +5,7 @@ pub mod mcp_state;
 pub mod models;
 pub mod process_manager;
 pub mod registry;
+pub mod schema;
 pub mod spawned_process;
 
 // Re-export commonly used types and functions

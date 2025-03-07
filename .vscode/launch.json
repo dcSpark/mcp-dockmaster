@@ -1,0 +1,23 @@
+{
+  "version": "0.2.0",
+  "configurations": [
+    {
+      "type": "lldb",
+      "request": "launch",
+      "name": "Tauri Development Debug",
+      "cargo": {
+        "args": [
+          "build",
+          "--manifest-path=./apps/mcp-dockmaster/src-tauri/Cargo.toml",
+          "--no-default-features"
+        ]
+      },
+      "cwd": "${workspaceFolder}",
+      "env": {
+        "WEBKIT_DISABLE_COMPOSITING_MODE": "1",
+        "RUST_BACKTRACE": "1"
+      },
+      "preLaunchTask": "ui:dev"
+    }
+  ]
+}

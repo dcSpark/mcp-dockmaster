@@ -55,3 +55,11 @@ cd libs/mcp-core
 cargo fmt --check
 cargo clippy
 ``` 
+
+### Tests
+
+You can run the tests like this:
+
+```bash
+cargo test -- --test-threads=1
+```

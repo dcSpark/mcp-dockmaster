@@ -84,7 +84,7 @@ pub async fn get_all_server_data(state: State<'_, MCPState>) -> Result<Value, St
 
 /// Save the MCP state to the database
 #[tauri::command]
-pub async fn save_mcp_state_command(state: State<'_, MCPState>) -> Result<String, String> {
+pub async fn save_mcp_state_command(_state: State<'_, MCPState>) -> Result<String, String> {
     println!("Saving MCP state to the database is no longer supported");
     Ok("Saving MCP state to the database is no longer supported".to_string())
     // mcp_core::mcp_proxy::save_mcp_state_command(state.inner()).await
@@ -92,7 +92,7 @@ pub async fn save_mcp_state_command(state: State<'_, MCPState>) -> Result<String
 
 /// Load MCP state from the database
 #[tauri::command]
-pub async fn load_mcp_state_command(state: State<'_, MCPState>) -> Result<String, String> {
+pub async fn load_mcp_state_command(_state: State<'_, MCPState>) -> Result<String, String> {
     println!("Loading MCP state from the database is no longer supported");
     Ok("Loading MCP state from the database is no longer supported".to_string())
     // mcp_core::mcp_proxy::load_mcp_state_command(state.inner()).await

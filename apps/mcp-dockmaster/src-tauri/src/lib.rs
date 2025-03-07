@@ -5,7 +5,7 @@ use crate::features::mcp_proxy::{
     update_tool_status,
 };
 use log::{error, info};
-use mcp_core::{mcp_state::MCPState, registry::ToolRegistry};
+use mcp_core::mcp_state::MCPState;
 use std::sync::Arc;
 use tauri::{Emitter, Manager, RunEvent};
 use tokio::sync::RwLock;

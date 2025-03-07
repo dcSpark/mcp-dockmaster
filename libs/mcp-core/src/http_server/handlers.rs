@@ -1,12 +1,16 @@
+use std::sync::Arc;
+
 use axum::response::IntoResponse;
 use axum::{http::StatusCode, Extension, Json};
 use log::info;
+use reqwest;
 use serde::{Deserialize, Serialize};
 use serde_json::{json, Value};
-use std::sync::Arc;
 use tokio::sync::RwLock;
 
+use crate::mcp_proxy::register_tool;
 use crate::mcp_state::MCPState;
+use crate::types::ToolRegistrationRequest;
 
 #[derive(Deserialize)]
 pub struct JsonRpcRequest {
@@ -76,6 +80,17 @@ pub async fn handle_mcp_request(
                 }))
             }
         }
+        "registry/install" => {
+            if let Some(params) = request.params {
+                handle_register_tool(state, params).await
+            } else {
+                Err(json!({
+                    "code": -32602,
+                    "message": "Invalid params - missing parameters for tool registration"
+                }))
+            }
+        }
+        "registry/list" => handle_list_all_tools(state).await,
         _ => Err(json!({
             "code": -32601,
             "message": format!("Method not found: {}", request.method)
@@ -163,6 +178,152 @@ async fn handle_list_tools(state: Arc<RwLock<MCPState>>) -> Result<Value, Value>
     }))
 }
 
+async fn handle_register_tool(state: Arc<RwLock<MCPState>>, params: Value) -> Result<Value, Value> {
+    println!("handle_register_tool: trying to register tool {:?}", params);
+    let mcp_state = state.write().await;
+    let registry = fetch_tool_from_registry().await?;
+    let tools = registry.get("tools").unwrap().as_array().unwrap();
+
+    let tool = tools
+        .iter()
+        .find(|tool| tool.get("name").unwrap().as_str() == params.get("tool").unwrap().as_str());
+
+    match tool {
+        Some(tool) => {
+            println!("[PRE] handle_register_tool: tool {:?}", tool);
+
+            let tool_name = tool
+                .get("name")
+                .unwrap()
+                .as_str()
+                .unwrap_or("error")
+                .to_string();
+
+            let description = tool
+                .get("description")
+                .unwrap()
+                .as_str()
+                .unwrap_or_default()
+                .to_string();
+
+            let env_configs = tool
+                .get("config")
+                .and_then(|config| config.get("env"))
+                .map(|env| {
+                    json!({
+                        "env": env
+                    })
+                });
+
+            let tool_type = tool
+                .get("runtime")
+                .unwrap_or(&json!("error"))
+                .as_str()
+                .unwrap_or("error")
+                .to_string();
+
+            let configuration = tool.get("config").map(|config| {
+                json!({
+                    "command": config.get("command").unwrap_or(&json!("error")),
+                    "args": config.get("args").unwrap_or(&json!([]))
+                })
+            });
+
+            let distribution = tool.get("distribution").map(|dist| {
+                json!({
+                    "type": dist.get("type").unwrap_or(&json!("error")),
+                    "package": dist.get("package").unwrap_or(&json!("error"))
+                })
+            });
+
+            let tool = ToolRegistrationRequest {
+                tool_name,
+                description,
+                tool_type,
+                configuration,
+                distribution,
+                env_configs,
+            };
+
+            println!("[POST] handle_register_tool: tool {:?}", tool);
+            let r = register_tool(&mcp_state, tool).await;
+            // Asume installation is successful
+            println!("[INSTALLATION] handle_register_tool: r {:?}", r);
+            Ok(json!({
+                "code": 0,
+                "message": "Tool installed successfully"
+            }))
+        }
+        None => Err(json!({
+            "code": -32602,
+            "message": format!("Tool not found: {:?}", params.get("name"))
+        })),
+    }
+}
+
+async fn fetch_tool_from_registry() -> Result<Value, Value> {
+    // Fetch tools from remote URL
+    let tools_url = "https://pub-790f7c5dc69a482998b623212fa27446.r2.dev/db.v0.json";
+
+    let client = reqwest::Client::builder().build().unwrap_or_default();
+
+    let response = client
+        .get(tools_url)
+        .header("Accept-Encoding", "gzip")
+        .header("User-Agent", "MCP-Core/1.0")
+        .send()
+        .await
+        .map_err(|e| {
+            json!({
+                "code": -32000,
+                "message": format!("Failed to fetch tools from registry: {}", e)
+            })
+        })?;
+
+    let tools: Vec<Value> = response.json().await.map_err(|e| {
+        json!({
+            "code": -32000,
+            "message": format!("Failed to parse tools from registry: {}", e)
+        })
+    })?;
+
+    let mut all_tools = Vec::new();
+
+    for tool in tools {
+        let mut tool_info = serde_json::Map::new();
+
+        if let Some(obj) = tool.as_object() {
+            for (key, value) in obj {
+                tool_info.insert(key.clone(), value.clone());
+            }
+        }
+
+        if !tool_info.contains_key("description") {
+            tool_info.insert("description".to_string(), json!("Tool from registry"));
+        }
+
+        if !tool_info.contains_key("inputSchema") {
+            tool_info.insert(
+                "inputSchema".to_string(),
+                json!({
+                    "type": "object",
+                    "properties": {}
+                }),
+            );
+        }
+
+        all_tools.push(json!(tool_info));
+    }
+    let v = json!({
+        "tools": all_tools
+    });
+    Ok(v)
+}
+
+async fn handle_list_all_tools(_: Arc<RwLock<MCPState>>) -> Result<Value, Value> {
+    fetch_tool_from_registry().await
+}
+
 async fn handle_list_prompts() -> Result<Value, Value> {
     Ok(json!({
         "prompts": []
@@ -246,7 +407,7 @@ async fn handle_invoke_tool(state: Arc<RwLock<MCPState>>, params: Value) -> Resu
 
     // Drop the server_tools lock before executing the tool
     drop(server_tools);
-    
+
     match mcp_state
         .execute_tool(&server_id, tool_name, arguments)
         .await

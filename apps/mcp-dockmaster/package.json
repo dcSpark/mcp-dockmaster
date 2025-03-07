@@ -23,6 +23,7 @@
     "@radix-ui/react-tooltip": "^1.1.8",
     "@tailwindcss/vite": "^4.0.11",
     "@tanstack/react-query": "^5.67.1",
+    "@tanstack/react-virtual": "^3.13.2",
     "@tauri-apps/api": "^2.2.0",
     "@tauri-apps/plugin-opener": "^2",
     "class-variance-authority": "^0.7.1",

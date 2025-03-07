@@ -1,19 +1,26 @@
+use diesel::prelude::*;
+use diesel::r2d2::{self, ConnectionManager, Pool};
+use diesel_migrations::{embed_migrations, EmbeddedMigrations, MigrationHarness};
 use directories::ProjectDirs;
 use log::info;
-use r2d2::Pool;
-use r2d2_sqlite::SqliteConnectionManager;
-use rusqlite::params;
 use std::collections::HashMap;
 use std::fs;
 use std::path::PathBuf;
 use std::sync::Arc;
-use std::time::Duration;
 
-use crate::models::types::Tool;
+use crate::models::tool_db::{DBTool, DBToolEnv, NewTool, NewToolEnv, UpdateTool};
+use crate::models::types::{Distribution, Tool, ToolConfiguration, ToolEnvironment};
+use crate::schema::server_tools::dsl as server_dsl;
+use crate::schema::tool_env::dsl as env_dsl;
+use crate::schema::tools::dsl as tools_dsl;
+
+pub const MIGRATIONS: EmbeddedMigrations = embed_migrations!("migrations/sqlite");
+
+type SqlitePool = Pool<ConnectionManager<SqliteConnection>>;
 
 /// Database manager for persisting application state
 pub struct DBManager {
-    pool: Arc<Pool<SqliteConnectionManager>>,
+    pool: Arc<SqlitePool>,
 }
 
 impl DBManager {
@@ -33,146 +40,361 @@ impl DBManager {
             }
         }
 
-        // Create the connection manager
-        let manager = SqliteConnectionManager::file(&db_path);
+        // Create the database URL - use file: prefix for SQLite
+        let database_url = format!("sqlite://{}", db_path.to_string_lossy());
 
-        // Create the connection pool
-        let pool = Pool::builder()
-            .max_size(10)
-            .connection_timeout(Duration::from_secs(60))
+        // Ensure the database file exists
+        if !db_path.exists() {
+            std::fs::File::create(&db_path)
+                .map_err(|e| format!("Failed to create database file: {}", e))?;
+        }
+
+        // Create the connection manager
+        let manager = ConnectionManager::<SqliteConnection>::new(database_url);
+
+        // Create the connection pool with more conservative settings
+        let pool = r2d2::Pool::builder()
+            .max_size(5)
+            .connection_timeout(std::time::Duration::from_secs(5))
             .build(manager)
             .map_err(|e| format!("Failed to create connection pool: {}", e))?;
 
         // Get a connection to initialize the database
-        let conn = pool
+        let mut conn = pool
             .get()
             .map_err(|e| format!("Failed to get database connection: {}", e))?;
 
-        // Enable WAL mode and set optimizations
-        conn.execute_batch(
-            "PRAGMA journal_mode=WAL;
-             PRAGMA synchronous=FULL;
-             PRAGMA temp_store=MEMORY;
-             PRAGMA optimize;
-             PRAGMA busy_timeout = 5000;
-             PRAGMA mmap_size=262144000; -- 250 MB in bytes (250 * 1024 * 1024)
-             PRAGMA foreign_keys = ON;", // Enable foreign key support
-        )
-        .map_err(|e| format!("Failed to set PRAGMA configurations: {}", e))?;
+        info!("Running migrations for database at {:?}", db_path);
+
+        // Run migrations
+        let migration_result = conn.run_pending_migrations(MIGRATIONS);
+        match &migration_result {
+            Ok(migrations) => {
+                info!("Successfully ran {} migrations", migrations.len());
+                for migration in migrations {
+                    info!("Applied migration: {}", migration);
+                }
+            }
+            Err(e) => {
+                info!("Migration failed: {}", e);
+            }
+        }
+        migration_result.map_err(|e| format!("Failed to run migrations: {}", e))?;
+
+        // Debug: Check if tables exist and their structure
+        let tables = diesel::sql_query("SELECT name FROM sqlite_master WHERE type='table';")
+            .execute(&mut conn)
+            .map_err(|e| format!("Failed to check tables: {}", e))?;
+
+        info!("Found {} tables after migrations", tables);
+
+        // Set pragmas
+        diesel::sql_query("PRAGMA journal_mode=WAL")
+            .execute(&mut conn)
+            .map_err(|e| format!("Failed to set journal_mode: {}", e))?;
+
+        diesel::sql_query("PRAGMA synchronous=FULL")
+            .execute(&mut conn)
+            .map_err(|e| format!("Failed to set synchronous: {}", e))?;
+
+        diesel::sql_query("PRAGMA temp_store=MEMORY")
+            .execute(&mut conn)
+            .map_err(|e| format!("Failed to set temp_store: {}", e))?;
+
+        diesel::sql_query("PRAGMA optimize")
+            .execute(&mut conn)
+            .map_err(|e| format!("Failed to optimize: {}", e))?;
+
+        diesel::sql_query("PRAGMA busy_timeout = 5000")
+            .execute(&mut conn)
+            .map_err(|e| format!("Failed to set busy_timeout: {}", e))?;
+
+        diesel::sql_query("PRAGMA mmap_size=262144000")
+            .execute(&mut conn)
+            .map_err(|e| format!("Failed to set mmap_size: {}", e))?;
+
+        diesel::sql_query("PRAGMA foreign_keys = ON")
+            .execute(&mut conn)
+            .map_err(|e| format!("Failed to enable foreign keys: {}", e))?;
 
         let db_manager = Self {
             pool: Arc::new(pool),
         };
-        db_manager.initialize_tables()?;
 
         info!("Database initialized at: {:?}", db_path);
         Ok(db_manager)
     }
 
-    /// Initialize database tables
-    fn initialize_tables(&self) -> Result<(), String> {
-        let conn = self
-            .pool
-            .get()
-            .map_err(|e| format!("Failed to get database connection: {}", e))?;
-
-        conn.execute(
-            "CREATE TABLE IF NOT EXISTS tools (
-                id TEXT PRIMARY KEY,
-                data TEXT NOT NULL
-            )",
-            [],
-        )
-        .map_err(|e| format!("Failed to create tools table: {}", e))?;
-
-        conn.execute(
-            "CREATE TABLE IF NOT EXISTS server_tools (
-                server_id TEXT,
-                tool_data TEXT NOT NULL,
-                PRIMARY KEY (server_id)
-            )",
-            [],
-        )
-        .map_err(|e| format!("Failed to create server_tools table: {}", e))?;
-
-        Ok(())
-    }
-
     /// Get a tool by ID
-    pub fn get_tool(&self, tool_id: &str) -> Result<Tool, String> {
-        let conn = self
+    pub fn get_tool(&self, tool_id_str: &str) -> Result<Tool, String> {
+        let mut conn = self
             .pool
             .get()
             .map_err(|e| format!("Failed to get database connection: {}", e))?;
 
-        let data: String = conn
-            .query_row(
-                "SELECT data FROM tools WHERE id = ?1",
-                params![tool_id],
-                |row| row.get(0),
-            )
-            .map_err(|e| format!("Failed to get tool {}: {}", tool_id, e))?;
+        // 1) Fetch from `tools` table
+        let db_tool: DBTool = tools_dsl::tools
+            .filter(tools_dsl::id.eq(tool_id_str))
+            .first::<DBTool>(&mut conn)
+            .map_err(|e| format!("Failed to get tool {}: {}", tool_id_str, e))?;
 
-        serde_json::from_str(&data).map_err(|e| format!("Failed to deserialize tool data: {}", e))
+        // 2) Fetch environment variables from `tool_env` table
+        let env_rows: Vec<DBToolEnv> = env_dsl::tool_env
+            .filter(env_dsl::tool_id.eq(tool_id_str))
+            .load::<DBToolEnv>(&mut conn)
+            .map_err(|e| format!("Failed to get env vars for {}: {}", tool_id_str, e))?;
+
+        // Convert environment variables into a HashMap
+        let mut env_map = HashMap::new();
+        for row in env_rows {
+            env_map.insert(
+                row.env_key,
+                ToolEnvironment {
+                    description: row.env_description,
+                    default: Some(row.env_value),
+                    required: row.env_required,
+                },
+            );
+        }
+
+        // 3) Convert DBTool -> domain-level Tool
+        // Parse `args` from DBTool as JSON array
+        let parsed_args: Option<Vec<String>> = match db_tool.args {
+            Some(ref s) => serde_json::from_str(s).ok(),
+            None => None,
+        };
+
+        let distribution = if let Some(dist_type) = db_tool.distribution_type.as_ref() {
+            Some(Distribution {
+                r#type: dist_type.clone(),
+                package: db_tool.distribution_package.clone().unwrap_or_default(),
+            })
+        } else {
+            None
+        };
+
+        let tool = Tool {
+            name: db_tool.name,
+            description: db_tool.description,
+            enabled: db_tool.enabled,
+            tool_type: db_tool.tool_type,
+            entry_point: db_tool.entry_point,
+            configuration: Some(ToolConfiguration {
+                command: db_tool.command.unwrap_or_default(),
+                args: parsed_args,
+                env: if env_map.is_empty() {
+                    None
+                } else {
+                    Some(env_map)
+                },
+            }),
+            distribution,
+            config: None,
+            env_configs: None,
+        };
+
+        Ok(tool)
     }
 
     /// Get all tools
     pub fn get_all_tools(&self) -> Result<HashMap<String, Tool>, String> {
-        let conn = self
+        let mut conn = self
             .pool
             .get()
             .map_err(|e| format!("Failed to get database connection: {}", e))?;
 
-        let mut stmt = conn
-            .prepare("SELECT id, data FROM tools")
-            .map_err(|e| format!("Failed to prepare statement: {}", e))?;
-
-        let rows = stmt
-            .query_map([], |row| {
-                let id: String = row.get(0)?;
-                let data: String = row.get(1)?;
-                Ok((id, data))
-            })
+        // 1) Fetch all tools from the `tools` table
+        let db_tools: Vec<DBTool> = tools_dsl::tools
+            .load::<DBTool>(&mut conn)
             .map_err(|e| format!("Failed to query tools: {}", e))?;
 
-        let mut tools = HashMap::new();
-        for row in rows {
-            let (id, data) = row.map_err(|e| format!("Failed to read row: {}", e))?;
-            let tool: Tool = serde_json::from_str(&data)
-                .map_err(|e| format!("Failed to deserialize tool data: {}", e))?;
-            tools.insert(id, tool);
+        // 2) Fetch all environment variables
+        let all_env_rows: Vec<DBToolEnv> = env_dsl::tool_env
+            .load::<DBToolEnv>(&mut conn)
+            .map_err(|e| format!("Failed to query environment variables: {}", e))?;
+
+        // Group environment variables by tool_id
+        let mut env_map_by_tool: HashMap<String, HashMap<String, ToolEnvironment>> = HashMap::new();
+        for row in all_env_rows {
+            let tool_env_map = env_map_by_tool.entry(row.tool_id.clone()).or_default();
+            tool_env_map.insert(
+                row.env_key.clone(),
+                ToolEnvironment {
+                    description: row.env_description,
+                    default: Some(row.env_value),
+                    required: row.env_required,
+                },
+            );
         }
 
-        Ok(tools)
+        // 3) Convert DBTool -> domain-level Tool for each tool
+        let mut tools_map = HashMap::new();
+        for db_tool in db_tools {
+            // Parse `args` from DBTool as JSON array
+            let parsed_args: Option<Vec<String>> = match db_tool.args {
+                Some(ref s) => serde_json::from_str(s).ok(),
+                None => None,
+            };
+
+            let distribution = if let Some(dist_type) = db_tool.distribution_type.as_ref() {
+                Some(Distribution {
+                    r#type: dist_type.clone(),
+                    package: db_tool.distribution_package.clone().unwrap_or_default(),
+                })
+            } else {
+                None
+            };
+
+            // Get environment variables for this tool
+            let env_map = env_map_by_tool.remove(&db_tool.id).unwrap_or_default();
+
+            let tool = Tool {
+                name: db_tool.name.clone(),
+                description: db_tool.description.clone(),
+                enabled: db_tool.enabled,
+                tool_type: db_tool.tool_type.clone(),
+                entry_point: db_tool.entry_point.clone(),
+                configuration: Some(ToolConfiguration {
+                    command: db_tool.command.clone().unwrap_or_default(),
+                    args: parsed_args,
+                    env: if env_map.is_empty() {
+                        None
+                    } else {
+                        Some(env_map)
+                    },
+                }),
+                distribution,
+                config: None,
+                env_configs: None,
+            };
+
+            tools_map.insert(db_tool.id.clone(), tool);
+        }
+
+        Ok(tools_map)
     }
 
     /// Save or update a tool
-    pub fn save_tool(&self, tool_id: &str, tool: &Tool) -> Result<(), String> {
-        let conn = self
+    pub fn save_tool(&self, tool_id_str: &str, tool: &Tool) -> Result<(), String> {
+        let mut conn = self
             .pool
             .get()
             .map_err(|e| format!("Failed to get database connection: {}", e))?;
 
-        let tool_json = serde_json::to_string(tool)
-            .map_err(|e| format!("Failed to serialize tool data: {}", e))?;
+        // Convert domain `Tool` into row data
+        let distribution_type_str = tool.distribution.as_ref().map(|d| d.r#type.clone());
+        let distribution_package_str = tool.distribution.as_ref().map(|d| d.package.clone());
 
-        conn.execute(
-            "INSERT OR REPLACE INTO tools (id, data) VALUES (?1, ?2)",
-            params![tool_id, tool_json],
-        )
-        .map_err(|e| format!("Failed to save tool: {}", e))?;
+        // Store the `args` as JSON in a text column
+        let args_as_str = if let Some(config) = &tool.configuration {
+            config
+                .args
+                .as_ref()
+                .map(|args_vec| serde_json::to_string(args_vec).unwrap_or_default())
+        } else {
+            None
+        };
+
+        let command_str = tool
+            .configuration
+            .as_ref()
+            .map(|c| c.command.clone())
+            .unwrap_or_default();
+
+        // Prepare upsert struct
+        let new_tool = NewTool {
+            id: tool_id_str,
+            name: &tool.name,
+            description: &tool.description,
+            tool_type: &tool.tool_type,
+            enabled: tool.enabled,
+            entry_point: tool.entry_point.as_deref(),
+            command: if command_str.is_empty() {
+                None
+            } else {
+                Some(&command_str)
+            },
+            args: args_as_str.as_deref(),
+            distribution_type: distribution_type_str.as_deref(),
+            distribution_package: distribution_package_str.as_deref(),
+        };
+
+        // For updates, we need to create an UpdateTool struct
+        let update_tool = UpdateTool {
+            name: Some(&tool.name),
+            description: Some(&tool.description),
+            tool_type: Some(&tool.tool_type),
+            enabled: Some(tool.enabled),
+            entry_point: Some(tool.entry_point.as_deref()),
+            command: Some(if command_str.is_empty() {
+                None
+            } else {
+                Some(&command_str)
+            }),
+            args: Some(args_as_str.as_deref()),
+            distribution_type: Some(distribution_type_str.as_deref()),
+            distribution_package: Some(distribution_package_str.as_deref()),
+        };
+
+        // Insert or update main row
+        diesel::insert_into(tools_dsl::tools)
+            .values(&new_tool)
+            .on_conflict(tools_dsl::id)
+            .do_update()
+            .set(&update_tool)
+            .execute(&mut conn)
+            .map_err(|e| format!("Failed to save tool: {}", e))?;
+
+        // Now handle environment variables in tool_env
+        // 1) Delete old environment variables
+        diesel::delete(env_dsl::tool_env.filter(env_dsl::tool_id.eq(tool_id_str)))
+            .execute(&mut conn)
+            .map_err(|e| format!("Failed to clear old env: {}", e))?;
+
+        // 2) Insert new environment variables
+        if let Some(config) = &tool.configuration {
+            if let Some(env) = &config.env {
+                let new_env_rows: Vec<NewToolEnv> = env
+                    .iter()
+                    .map(|(k, v)| {
+                        let default_value = v.default.clone().unwrap_or_default();
+                        NewToolEnv {
+                            tool_id: tool_id_str.to_string(),
+                            env_key: k.to_string(),
+                            env_value: default_value,
+                            env_description: v.description.clone(),
+                            env_required: v.required,
+                        }
+                    })
+                    .collect();
+
+                if !new_env_rows.is_empty() {
+                    diesel::insert_into(env_dsl::tool_env)
+                        .values(&new_env_rows)
+                        .execute(&mut conn)
+                        .map_err(|e| format!("Failed to save env vars: {}", e))?;
+                }
+            }
+        }
 
         Ok(())
     }
 
     /// Delete a tool by ID
-    pub fn delete_tool(&self, tool_id: &str) -> Result<(), String> {
-        let conn = self
+    pub fn delete_tool(&self, tool_id_str: &str) -> Result<(), String> {
+        let mut conn = self
             .pool
             .get()
             .map_err(|e| format!("Failed to get database connection: {}", e))?;
 
-        conn.execute("DELETE FROM tools WHERE id = ?1", params![tool_id])
+        // Delete environment variables first (foreign key constraint will ensure this happens)
+        diesel::delete(env_dsl::tool_env.filter(env_dsl::tool_id.eq(tool_id_str)))
+            .execute(&mut conn)
+            .map_err(|e| format!("Failed to delete tool environment variables: {}", e))?;
+
+        // Delete the tool
+        diesel::delete(tools_dsl::tools.filter(tools_dsl::id.eq(tool_id_str)))
+            .execute(&mut conn)
             .map_err(|e| format!("Failed to delete tool: {}", e))?;
 
         Ok(())
@@ -180,28 +402,24 @@ impl DBManager {
 
     /// Clear the database
     pub fn clear_database(&mut self) -> Result<(), String> {
-        // Get a connection from the pool
         let mut conn = self
             .pool
             .get()
             .map_err(|e| format!("Failed to get database connection: {}", e))?;
 
-        // Begin transaction
-        let tx = conn
-            .transaction()
-            .map_err(|e| format!("Failed to begin transaction: {}", e))?;
+        conn.transaction::<_, diesel::result::Error, _>(|conn| {
+            // Delete environment variables first (due to foreign key constraints)
+            diesel::delete(env_dsl::tool_env).execute(conn)?;
 
-        // Clear tools table
-        tx.execute("DELETE FROM tools", [])
-            .map_err(|e| format!("Failed to clear tools table: {}", e))?;
+            // Delete tools
+            diesel::delete(tools_dsl::tools).execute(conn)?;
 
-        // Clear server_tools table
-        tx.execute("DELETE FROM server_tools", [])
-            .map_err(|e| format!("Failed to clear server_tools table: {}", e))?;
+            // Delete server tools
+            diesel::delete(server_dsl::server_tools).execute(conn)?;
 
-        // Commit transaction
-        tx.commit()
-            .map_err(|e| format!("Failed to commit transaction: {}", e))?;
+            Ok(())
+        })
+        .map_err(|e| format!("Transaction failed: {}", e))?;
 
         info!("Database cleared successfully");
         Ok(())
@@ -209,14 +427,14 @@ impl DBManager {
 
     /// Check if the database exists and has data
     pub fn check_exists(&self) -> Result<bool, String> {
-        let conn = self
+        let mut conn = self
             .pool
             .get()
             .map_err(|e| format!("Failed to get database connection: {}", e))?;
 
-        // Check if the tools table exists and has data
-        let count: i64 = conn
-            .query_row("SELECT COUNT(*) FROM tools", [], |row| row.get(0))
+        let count: i64 = tools_dsl::tools
+            .count()
+            .get_result(&mut conn)
             .map_err(|e| format!("Failed to check database: {}", e))?;
 
         Ok(count > 0)

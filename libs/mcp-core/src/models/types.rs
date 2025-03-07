@@ -57,6 +57,18 @@ pub struct ToolConfiguration {
     pub command: String,
     #[serde(default)]
     pub args: Option<Vec<String>>,
+    #[serde(default)]
+    pub env: Option<HashMap<String, ToolEnvironment>>,
+}
+
+#[derive(Clone, Debug, Serialize, Deserialize)]
+pub struct ToolEnvironment {
+    #[serde(default)]
+    pub description: String,
+    #[serde(default)]
+    pub default: Option<String>,
+    #[serde(default)]
+    pub required: bool,
 }
 
 /// Tool config for environment variables and optional command
@@ -96,7 +108,7 @@ pub struct Tool {
 //     pub server_tools: HashMap<ToolId, Vec<Value>>,
 
 /// MCP tool registration request
-#[derive(Deserialize)]
+#[derive(Debug, Deserialize)]
 pub struct ToolRegistrationRequest {
     pub tool_name: String,
     pub description: String,
@@ -108,7 +120,7 @@ pub struct ToolRegistrationRequest {
 }
 
 /// MCP tool registration response
-#[derive(Serialize)]
+#[derive(Debug, Serialize)]
 pub struct ToolRegistrationResponse {
     pub success: bool,
     pub message: String,

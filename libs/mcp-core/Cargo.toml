@@ -9,7 +9,7 @@ authors = ["MCP Team"]
 serde = { version = "1", features = ["derive"] }
 serde_json = "1"
 tokio = { version = "1.0", features = ["full"] }
-reqwest = { version = "0.12.12", features = ["json"] }
+reqwest = { version = "0.12.12", features = ["json", "gzip"] }
 axum = { version = "0.8.1", features = ["macros"] }
 tower = "0.4"
 tower-http = { version = "0.6.2", features = ["cors"] }
@@ -17,10 +17,10 @@ hyper = "1.6.0"
 log = "0.4.26"
 thiserror = "2.0.12"
 env_logger = "0.11.6"
-rusqlite = { version = "0.33.0", features = ["bundled"] }
 directories = "6.0.0"
-r2d2 = "0.8.10"
-r2d2_sqlite = { version = "0.26.0", features = ["bundled"] }
+diesel = { version = "2.1.0", features = ["sqlite", "r2d2"] }
+diesel_migrations = { version = "2.1.0", features = ["sqlite"] }
+libsqlite3-sys = { version = "0.31.0", features = ["bundled"] }
 
 [lib]
 name = "mcp_core"
@@ -29,4 +29,4 @@ path = "src/lib.rs"
 [dev-dependencies]
 tokio = { version = "1.0", features = ["full", "test-util"] } 
 serial_test = "3.0.0"
-tempfile = "3.10.1"     
+tempfile = "3.10.1"          

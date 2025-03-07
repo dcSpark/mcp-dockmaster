@@ -1,9 +1,10 @@
 use crate::mcp_state::MCPState;
 use crate::models::types::{
-    DiscoverServerToolsRequest, DiscoverServerToolsResponse, Distribution, EnvConfigs, Tool, ToolConfig,
-    ToolConfigUpdateRequest, ToolConfigUpdateResponse, ToolConfiguration, ToolExecutionRequest,
-    ToolExecutionResponse, ToolId, ToolRegistrationRequest, ToolRegistrationResponse, ToolType,
-    ToolUninstallRequest, ToolUninstallResponse, ToolUpdateRequest, ToolUpdateResponse,
+    DiscoverServerToolsRequest, DiscoverServerToolsResponse, Distribution, EnvConfigs, Tool,
+    ToolConfig, ToolConfigUpdateRequest, ToolConfigUpdateResponse, ToolConfiguration,
+    ToolEnvironment, ToolExecutionRequest, ToolExecutionResponse, ToolId, ToolRegistrationRequest,
+    ToolRegistrationResponse, ToolType, ToolUninstallRequest, ToolUninstallResponse,
+    ToolUpdateRequest, ToolUpdateResponse,
 };
 use crate::registry::ToolRegistry;
 use crate::{database, spawned_process::SpawnedProcess, MCPError};
@@ -314,6 +315,20 @@ pub async fn spawn_process(
     let config = ToolConfiguration {
         command: command.to_string(),
         args: Some(args),
+        env: env_vars.map(|vars| {
+            vars.iter()
+                .map(|(k, v)| {
+                    (
+                        k.clone(),
+                        ToolEnvironment {
+                            description: "".to_string(),
+                            default: Some(v.clone()),
+                            required: false,
+                        },
+                    )
+                })
+                .collect()
+        }),
     };
 
     let tool_type = match tool_type {
@@ -381,6 +396,54 @@ pub async fn register_tool(
                     .filter_map(|arg| arg.as_str().map(|s| s.to_string()))
                     .collect()
             }),
+            env: config.get("env").and_then(|v| v.as_object()).map(|env| {
+                env.iter()
+                    .map(|(k, v)| {
+                        let description = if let Value::Object(obj) = v {
+                            obj.get("description")
+                                .and_then(|d| d.as_str())
+                                .unwrap_or_default()
+                                .to_string()
+                        } else {
+                            "".to_string()
+                        };
+
+                        let default = if let Value::Object(obj) = v {
+                            obj.get("default").and_then(|d| match d {
+                                Value::String(s) => Some(s.clone()),
+                                Value::Number(n) => Some(n.to_string()),
+                                Value::Bool(b) => Some(b.to_string()),
+                                _ => None,
+                            })
+                        } else if let Value::String(s) = v {
+                            Some(s.clone())
+                        } else if let Value::Number(n) = v {
+                            Some(n.to_string())
+                        } else if let Value::Bool(b) = v {
+                            Some(b.to_string())
+                        } else {
+                            None
+                        };
+
+                        let required = if let Value::Object(obj) = v {
+                            obj.get("required")
+                                .and_then(|r| r.as_bool())
+                                .unwrap_or(false)
+                        } else {
+                            false
+                        };
+
+                        (
+                            k.to_string(),
+                            ToolEnvironment {
+                                description,
+                                default,
+                                required,
+                            },
+                        )
+                    })
+                    .collect()
+            }),
         });
 
     // Create the tool config with env variables if provided
@@ -426,9 +489,17 @@ pub async fn register_tool(
         tool_type: request.tool_type.clone(),
         entry_point: None,
         configuration,
-        distribution: request.distribution.as_ref().map(|v| serde_json::from_value(v.clone()).unwrap_or(Distribution { r#type: "".to_string(), package: "".to_string() })),
+        distribution: request.distribution.as_ref().map(|v| {
+            serde_json::from_value(v.clone()).unwrap_or(Distribution {
+                r#type: "".to_string(),
+                package: "".to_string(),
+            })
+        }),
         config: tool_config,
-        env_configs: request.env_configs.as_ref().map(|v| serde_json::from_value(v.clone()).unwrap_or(EnvConfigs { env: None })),
+        env_configs: request
+            .env_configs
+            .as_ref()
+            .map(|v| serde_json::from_value(v.clone()).unwrap_or(EnvConfigs { env: None })),
     };
 
     // Save the tool in the registry
@@ -601,7 +672,8 @@ pub async fn list_tools(mcp_state: &MCPState) -> Result<Vec<Value>, String> {
                     "configuration".to_string(),
                     json!({
                         "command": configuration.command,
-                        "args": configuration.args
+                        "args": configuration.args,
+                        "env": configuration.env,
                     }),
                 );
             }
@@ -609,7 +681,10 @@ pub async fn list_tools(mcp_state: &MCPState) -> Result<Vec<Value>, String> {
 
         if let Some(distribution) = &tool_struct.distribution {
             if let Some(obj) = tool_value.as_object_mut() {
-                obj.insert("distribution".to_string(), serde_json::to_value(distribution).unwrap_or(serde_json::Value::Null));
+                obj.insert(
+                    "distribution".to_string(),
+                    serde_json::to_value(distribution).unwrap_or(serde_json::Value::Null),
+                );
             }
         }
 
@@ -637,7 +712,10 @@ pub async fn list_tools(mcp_state: &MCPState) -> Result<Vec<Value>, String> {
 
         if let Some(env_configs) = &tool_struct.env_configs {
             if let Some(obj) = tool_value.as_object_mut() {
-                obj.insert("authentication".to_string(), serde_json::to_value(env_configs).unwrap_or(serde_json::Value::Null));
+                obj.insert(
+                    "authentication".to_string(),
+                    serde_json::to_value(env_configs).unwrap_or(serde_json::Value::Null),
+                );
             }
         }
 
@@ -659,6 +737,7 @@ pub async fn list_tools(mcp_state: &MCPState) -> Result<Vec<Value>, String> {
 
         tools.push(tool_value);
     }
+    println!("tools: {:?}", tools);
     Ok(tools)
 }
 
@@ -1054,7 +1133,10 @@ pub async fn get_all_server_data(mcp_state: &MCPState) -> Result<Value, String> 
 
         if let Some(distribution) = &tool_struct.distribution {
             if let Some(obj) = tool_value.as_object_mut() {
-                obj.insert("distribution".to_string(), serde_json::to_value(distribution).unwrap_or(serde_json::Value::Null));
+                obj.insert(
+                    "distribution".to_string(),
+                    serde_json::to_value(distribution).unwrap_or(serde_json::Value::Null),
+                );
             }
         }
 
@@ -1082,7 +1164,10 @@ pub async fn get_all_server_data(mcp_state: &MCPState) -> Result<Value, String> 
 
         if let Some(env_configs) = &tool_struct.env_configs {
             if let Some(obj) = tool_value.as_object_mut() {
-                obj.insert("authentication".to_string(), serde_json::to_value(env_configs).unwrap_or(serde_json::Value::Null));
+                obj.insert(
+                    "authentication".to_string(),
+                    serde_json::to_value(env_configs).unwrap_or(serde_json::Value::Null),
+                );
             }
         }
 

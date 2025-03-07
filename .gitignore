@@ -27,6 +27,5 @@ lerna-debug.log*
 
 # Rust
 target/
-.vscode/launch.json
 apps/mcp-runner/file_aggregator.sh
 libs/mcp-core/output.txt
