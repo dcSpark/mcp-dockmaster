@@ -564,38 +564,6 @@ const InstalledServers: React.FC = () => {
           <p>Visit the AI App Store to discover and install applications.</p>
         </div>
       ) : (
-        // <div className="tools-grid">
-        //   {installedTools.map(tool => (
-        //     <div
-        //       key={tool.id}
-        //       className={`tool-card ${tool.enabled ? 'enabled' : 'disabled'} ${expandedToolId === tool.id ? 'expanded' : ''}`}
-        //     >
-        //       <div className="tool-header">
-        //         <h3 className="tool-title">{tool.name}</h3>
-        //         <div className="tool-status">
-        //           {tool.config && tool.config.env && Object.keys(tool.config.env).length > 0 && (
-        //             <button
-        //               className="config-button"
-        //               onClick={(e) => {
-        //                 e.stopPropagation();
-        //                 startEditingEnvVars(tool.id, e);
-        //               }}
-        //               title="Configure Environment Variables"
-        //             >
-        //               <WrenchIcon />
-        //             </button>
-        //           )}
-        //           <span
-        //             className={`app-status-indicator ${tool.enabled ? 'active' : 'inactive'}`}
-        //             onClick={(e) => {
-        //               e.stopPropagation();
-        //               toggleToolStatus(tool.id);
-        //             }}
-        //             role="switch"
-        //             aria-checked={tool.enabled}
-        //             tabIndex={0}
-        //           ></span>
-        //           <span>{tool.enabled ? 'Enabled' : 'Disabled'}</span>
         <div className="grid grid-cols-2 gap-6 w-full">
           {installedTools.map((tool) => (
             <Card className="overflow-hidden border-slate-200 shadow-none ">

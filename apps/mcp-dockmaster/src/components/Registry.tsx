@@ -300,7 +300,7 @@ const Registry: React.FC = () => {
   });
 
   return (
-    <div className="h-full px-6 flex flex-col gap-8 py-10 max-w-4xl mx-auto w-full">
+    <div className="h-full px-6 flex flex-col gap-8 py-10 pb-4 max-w-4xl mx-auto w-full">
       <div className="flex flex-col space-y-1.5 ">
         <h1 className="font-semibold tracking-tight text-2xl">AI App Store</h1>
         <p className="text-sm text-muted-foreground">Discover and install AI applications and MCP tools.</p>
