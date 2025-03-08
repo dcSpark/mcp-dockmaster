@@ -1,11 +1,11 @@
 import "./index.css";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 
-import Home from "./components/Home";
+import Home from "./pages/home";
 import InstalledServers from "./components/InstalledServers";
 import Registry from "./components/Registry";
-import About from "./components/About";
-import LoadingOverlay from "./components/LoadingOverlay";
+import About from "./pages/about";
+import InitMpcOverlay from "./components/init-mpc-overlay";
 
 import {
   Sidebar,
@@ -102,7 +102,7 @@ const AppRoutes = () => {
   return (
     <QueryClientProvider client={queryClient}>
       <TooltipProvider delayDuration={0}>
-        <LoadingOverlay>
+        <InitMpcOverlay>
           <SidebarProvider>
             <AppSidebar />
             <SidebarInset>
@@ -117,7 +117,7 @@ const AppRoutes = () => {
             </SidebarInset>
           </SidebarProvider>
           <Toaster position="top-right" theme="light" />
-        </LoadingOverlay>
+        </InitMpcOverlay>
       </TooltipProvider>
     </QueryClientProvider>
   );

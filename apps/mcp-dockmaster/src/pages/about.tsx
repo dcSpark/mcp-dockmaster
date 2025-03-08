@@ -1,5 +1,3 @@
-import "./styles.css";
-
 const About = () => {
   return (
     <div className="text-muted-foreground mx-auto flex h-full w-full max-w-4xl flex-col gap-8 px-6 py-10 text-sm">
@@ -7,7 +5,9 @@ const About = () => {
         About MCP Dockmaster
       </h1>
       <section className="about-section">
-        <h2 className="text-foreground text-lg font-semibold">Overview</h2>
+        <h2 className="text-foreground mb-4 border-b border-gray-300 pb-2 text-lg font-semibold">
+          Overview
+        </h2>
         <p>
           MCP Dockmaster is a powerful application management platform designed
           to simplify the deployment, management, and monitoring of AI
@@ -16,7 +16,9 @@ const About = () => {
         </p>
       </section>
       <section className="about-section">
-        <h2 className="text-foreground text-lg font-semibold">Mission</h2>
+        <h2 className="text-foreground mb-4 border-b border-gray-300 pb-2 text-lg font-semibold">
+          Mission
+        </h2>
         <p>
           Our mission is to democratize access to advanced AI tools and
           applications by providing an intuitive interface for managing complex
@@ -25,17 +27,23 @@ const About = () => {
         </p>
       </section>
       <section className="about-section">
-        <h2 className="text-foreground text-lg font-semibold">Features</h2>
-        <ul>
-          <li>Easy application installation and management</li>
-          <li>Centralized control panel for all your AI applications</li>
-          <li>Access to a curated store of AI applications</li>
-          <li>Simplified configuration and deployment</li>
-          <li>Real-time monitoring and logging</li>
+        <h2 className="text-foreground mb-4 border-b border-gray-300 pb-2 text-lg font-semibold">
+          Features
+        </h2>
+        <ul className="ml-6 list-disc">
+          <li className="mb-2">Easy application installation and management</li>
+          <li className="mb-2">
+            Centralized control panel for all your AI applications
+          </li>
+          <li className="mb-2">Access to a curated store of AI applications</li>
+          <li className="mb-2">Simplified configuration and deployment</li>
+          <li className="mb-2">Real-time monitoring and logging</li>
         </ul>
       </section>
       <section className="about-section">
-        <h2 className="text-foreground text-lg font-semibold">Contact</h2>
+        <h2 className="text-foreground mb-4 border-b border-gray-300 pb-2 text-lg font-semibold">
+          Contact
+        </h2>
         <p>
           For more information about MCP Dockmaster, please visit our website or
           contact our support team.

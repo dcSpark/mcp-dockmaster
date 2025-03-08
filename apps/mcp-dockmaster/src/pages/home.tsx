@@ -1,6 +1,5 @@
 import React, { useState, useEffect } from "react";
 import { invoke } from "@tauri-apps/api/core";
-import "./Home.css";
 
 import dockerIcon from "../assets/docker.svg";
 import nodeIcon from "../assets/node.svg";
@@ -11,7 +10,7 @@ import {
   CollapsibleContent,
   CollapsibleTrigger,
 } from "@radix-ui/react-collapsible";
-import { Button } from "./ui/button";
+import { Button } from "../components/ui/button";
 import {
   ArrowRight,
   ChevronDown,
@@ -21,8 +20,8 @@ import {
   RefreshCw,
 } from "lucide-react";
 import { toast } from "sonner";
-import { Separator } from "./ui/separator";
-import { Badge } from "./ui/badge";
+import { Separator } from "../components/ui/separator";
+import { Badge } from "../components/ui/badge";
 import { cn } from "@/lib/utils";
 
 interface PrerequisiteStatus {
