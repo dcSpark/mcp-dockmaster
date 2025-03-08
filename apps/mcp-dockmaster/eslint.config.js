@@ -20,8 +20,9 @@ export default [
       "dist/**",
       "build/**",
       "public/**",
-      "src/lib/**",
       "src/examples/**",
+      // remove lib once its fixed
+      "src/lib/**",
     ],
   },
   { languageOptions: { globals: fixedBrowserGlobals } },
