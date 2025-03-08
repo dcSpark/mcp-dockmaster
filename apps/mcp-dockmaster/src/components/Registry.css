@@ -341,32 +341,32 @@
   .tool-name {
     color: #ffffff;
   }
-  
+
   .tool-description {
     color: #aaaaaa;
   }
-  
+
   .tool-publisher {
     color: #aaaaaa;
   }
-  
+
   .publisher-link {
     color: #4a9eff;
   }
-  
+
   .runner-icon.unknown {
     background-color: #333333;
     color: #aaaaaa;
   }
-  
+
   .tool-action .uninstall-button {
     background-color: #1f1f1f;
     border-color: #ff6b6b;
     color: #ff6b6b;
   }
-  
+
   .tool-action .uninstall-button:hover {
     background-color: #ff6b6b;
     color: #1f1f1f;
   }
-} 
+}

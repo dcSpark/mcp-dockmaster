@@ -1,5 +1,5 @@
-import React from 'react';
-import './ServerCard.css';
+import React from "react";
+import "./ServerCard.css";
 
 interface ServerCardProps {
   name: string;
@@ -9,7 +9,12 @@ interface ServerCardProps {
   repoUrl: string;
 }
 
-const ServerCard: React.FC<ServerCardProps> = ({ name, author, downloads, description }) => {
+const ServerCard: React.FC<ServerCardProps> = ({
+  name,
+  author,
+  downloads,
+  description,
+}) => {
   return (
     <div className="server-card">
       <div className="server-card-header">
@@ -26,4 +31,4 @@ const ServerCard: React.FC<ServerCardProps> = ({ name, author, downloads, descri
   );
 };
 
-export default ServerCard; 
+export default ServerCard;

@@ -112,7 +112,6 @@ const InstalledServers: React.FC = () => {
         }
       }
     }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [expandedToolId]);
 
   // Add event listeners for tool status changes

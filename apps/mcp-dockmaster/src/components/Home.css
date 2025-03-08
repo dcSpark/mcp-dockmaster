@@ -157,29 +157,29 @@
     background-color: #1f1f1f;
     box-shadow: 0 1px 3px rgba(255, 255, 255, 0.1);
   }
-  
+
   .claude-instructions-container {
     background-color: #2d2a24;
     border-left: 4px solid #ff9d00;
   }
-  
+
   .keyboard-key {
     background-color: #2c2c2c;
     border-color: #444;
     color: #eee;
   }
-  
+
   .refresh-claude-button {
     background-color: #3d2e1e;
     color: #ff9d00;
     border-color: #5a3e1e;
   }
-  
+
   .prerequisite-item {
     background-color: #1f1f1f;
     border-color: #333;
   }
-  
+
   .prerequisite-name {
     color: #ffffff;
   }
@@ -248,21 +248,23 @@
     background-color: #1f1f1f;
     border-color: #333;
   }
-  
+
   .claude-config h3 {
     color: #e2e8f0;
   }
-  
+
   .config-code {
     background-color: #1a202c;
     color: #e2e8f0;
   }
-  
-  .config-button, .copy-button {
+
+  .config-button,
+  .copy-button {
     background-color: #3367d6;
   }
-  
-  .config-button:hover, .copy-button:hover {
+
+  .config-button:hover,
+  .copy-button:hover {
     background-color: #4285f4;
   }
-} 
+}
