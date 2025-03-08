@@ -9,7 +9,11 @@ interface LoadingOverlayProps {
   children: React.ReactNode;
 }
 
-const LoadingOverlay: React.FC<LoadingOverlayProps> = ({ children }) => {
+const LoadingOverlay: React.FC<LoadingOverlayProps> = ({
+  children,
+}: {
+  children: React.ReactNode;
+}) => {
   const [progress, setProgress] = useState(0);
 
   const appState = useAppStore((state) => state.appState);
@@ -29,7 +33,9 @@ const LoadingOverlay: React.FC<LoadingOverlayProps> = ({ children }) => {
     // Poll for initialization status
     const interval = setInterval(async () => {
       try {
-        const isComplete = await invoke<boolean>("check_initialization_complete");
+        const isComplete = await invoke<boolean>(
+          "check_initialization_complete",
+        );
         if (isComplete) {
           console.log("Initialization is complete");
 
@@ -56,11 +62,15 @@ const LoadingOverlay: React.FC<LoadingOverlayProps> = ({ children }) => {
 
   if (appState === "pending") {
     return (
-      <div className="flex items-center justify-center h-full w-full">
-        <div className="bg-white rounded-lg  p-6 text-center">
-          <h2 className="text-xl font-semibold text-gray-800">Initializing MCP Services</h2>
-          <p className="mt-2 text-gray-600 text-sm">We're setting things up for you. Please hold on...</p>
-          <div className="mt-4 w-full bg-gray-200 rounded-full h-2">
+      <div className="flex h-full w-full items-center justify-center">
+        <div className="rounded-lg bg-white p-6 text-center">
+          <h2 className="text-xl font-semibold text-gray-800">
+            Initializing MCP Services
+          </h2>
+          <p className="mt-2 text-sm text-gray-600">
+            We&apos;re setting things up for you. Please hold on...
+          </p>
+          <div className="mt-4 h-2 w-full rounded-full bg-gray-200">
             <Progress value={progress} max={100} />
           </div>
           <p className="mt-2 text-sm text-gray-500">{progress}% completed</p>
@@ -71,10 +81,14 @@ const LoadingOverlay: React.FC<LoadingOverlayProps> = ({ children }) => {
 
   if (appState === "error") {
     return (
-      <div className="flex items-center justify-center h-full w-full bg-red-100">
-        <div className="bg-white rounded-lg p-6 text-center shadow-md">
-          <h2 className="text-2xl font-semibold text-red-600">Error Initializing MCP Services</h2>
-          <p className="mt-2 text-gray-700">Please check your MCP configuration and try again.</p>
+      <div className="flex h-full w-full items-center justify-center bg-red-100">
+        <div className="rounded-lg bg-white p-6 text-center shadow-md">
+          <h2 className="text-2xl font-semibold text-red-600">
+            Error Initializing MCP Services
+          </h2>
+          <p className="mt-2 text-gray-700">
+            Please check your MCP configuration and try again.
+          </p>
         </div>
       </div>
     );

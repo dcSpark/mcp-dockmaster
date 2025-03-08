@@ -88,7 +88,7 @@
   }
   html,
   #root {
-    @apply h-full font-inter;
+    @apply font-inter h-full;
     overscroll-behavior: none;
   }
   body {

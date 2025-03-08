@@ -19,7 +19,11 @@ interface NotificationProps {
   onClose: () => void;
 }
 
-const Notification: React.FC<NotificationProps> = ({ message, type, onClose }) => {
+const Notification: React.FC<NotificationProps> = ({
+  message,
+  type,
+  onClose,
+}) => {
   useEffect(() => {
     const timer = setTimeout(() => {
       onClose();
@@ -75,7 +79,8 @@ const InstalledServers: React.FC = () => {
   const [envVarValues, setEnvVarValues] = useState<Record<string, string>>({});
   const [savingConfig, setSavingConfig] = useState(false);
   const [configPopupVisible, setConfigPopupVisible] = useState(false);
-  const [currentConfigTool, setCurrentConfigTool] = useState<InstalledTool | null>(null);
+  const [currentConfigTool, setCurrentConfigTool] =
+    useState<InstalledTool | null>(null);
   const [notifications, setNotifications] = useState<
     Array<{ id: string; message: string; type: "success" | "error" | "info" }>
   >([]);
@@ -129,10 +134,16 @@ const InstalledServers: React.FC = () => {
       }
     };
 
-    document.addEventListener(TOOL_STATUS_CHANGED, handleToolStatusChanged as EventListener);
+    document.addEventListener(
+      TOOL_STATUS_CHANGED,
+      handleToolStatusChanged as EventListener,
+    );
 
     return () => {
-      document.removeEventListener(TOOL_STATUS_CHANGED, handleToolStatusChanged as EventListener);
+      document.removeEventListener(
+        TOOL_STATUS_CHANGED,
+        handleToolStatusChanged as EventListener,
+      );
     };
   }, [installedTools]);
 
@@ -143,7 +154,9 @@ const InstalledServers: React.FC = () => {
       const allData = await MCPClient.getAllServerData();
 
       // Set servers (filtered to only active servers)
-      const activeServers = allData.servers.filter((server: any) => server.process_running);
+      const activeServers = allData.servers.filter(
+        (server: any) => server.process_running,
+      );
       setServers(activeServers);
 
       // Set server tools - make sure we have all tools from all servers
@@ -158,10 +171,16 @@ const InstalledServers: React.FC = () => {
       const toolsMap = new Map();
 
       tools.forEach((tool: any) => {
-        const toolId = tool.id || `tool_${Math.random().toString(36).substr(2, 9)}_${Date.now()}`;
+        const toolId =
+          tool.id ||
+          `tool_${Math.random().toString(36).substr(2, 9)}_${Date.now()}`;
         // Find server info for this tool
-        const serverTool = allServerTools.find((st: any) => st.server_id === tool.id);
-        const server = serverTool ? activeServers.find((s: any) => s.id === serverTool.server_id) : null;
+        const serverTool = allServerTools.find(
+          (st: any) => st.server_id === tool.id,
+        );
+        const server = serverTool
+          ? activeServers.find((s: any) => s.id === serverTool.server_id)
+          : null;
 
         // Only add if not already in the map (avoid duplicates)
         if (!toolsMap.has(tool.name.toLowerCase())) {
@@ -196,7 +215,11 @@ const InstalledServers: React.FC = () => {
       if (!tool) return;
 
       // Update the UI optimistically
-      setInstalledTools((prev) => prev.map((tool) => (tool.id === id ? { ...tool, enabled: !tool.enabled } : tool)));
+      setInstalledTools((prev) =>
+        prev.map((tool) =>
+          tool.id === id ? { ...tool, enabled: !tool.enabled } : tool,
+        ),
+      );
 
       // Call the backend API to update the tool status
       const response = await MCPClient.updateToolStatus({
@@ -210,7 +233,11 @@ const InstalledServers: React.FC = () => {
       } else {
         // If the API call fails, revert the UI change
         console.error("Failed to update tool status:", response.message);
-        setInstalledTools((prev) => prev.map((tool) => (tool.id === id ? { ...tool, enabled: tool.enabled } : tool)));
+        setInstalledTools((prev) =>
+          prev.map((tool) =>
+            tool.id === id ? { ...tool, enabled: tool.enabled } : tool,
+          ),
+        );
       }
     } catch (error) {
       console.error("Error toggling tool status:", error);
@@ -219,7 +246,10 @@ const InstalledServers: React.FC = () => {
     }
   };
 
-  const discoverToolsForServer = async (serverId: string, e?: React.MouseEvent) => {
+  const discoverToolsForServer = async (
+    serverId: string,
+    e?: React.MouseEvent,
+  ) => {
     if (e) {
       e.stopPropagation(); // Prevent the click from toggling the expanded state
     }
@@ -263,13 +293,18 @@ const InstalledServers: React.FC = () => {
     }));
   };
 
-  const addNotification = (message: string, type: "success" | "error" | "info") => {
+  const addNotification = (
+    message: string,
+    type: "success" | "error" | "info",
+  ) => {
     const id = Date.now().toString();
     setNotifications((prev) => [...prev, { id, message, type }]);
   };
 
   const removeNotification = (id: string) => {
-    setNotifications((prev) => prev.filter((notification) => notification.id !== id));
+    setNotifications((prev) =>
+      prev.filter((notification) => notification.id !== id),
+    );
   };
 
   const saveEnvVars = async (toolId: string, e: React.MouseEvent) => {
@@ -290,12 +325,15 @@ const InstalledServers: React.FC = () => {
       // Update the tool configuration
       const response = await MCPClient.updateToolConfig({
         tool_id: toolId,
-        config: envVarValues
+        config: envVarValues,
       });
 
       if (response.success) {
         console.log(`Tool ${toolId} configuration updated successfully`);
-        addNotification(`Configuration for ${tool.name} updated successfully`, "success");
+        addNotification(
+          `Configuration for ${tool.name} updated successfully`,
+          "success",
+        );
 
         // Update the tool in the local state
         setInstalledTools((prev) =>
@@ -308,25 +346,38 @@ const InstalledServers: React.FC = () => {
                     env: { ...envVarValues },
                   },
                 }
-              : t
-          )
+              : t,
+          ),
         );
 
         // Restart the tool with the new configuration if it's enabled
         if (tool.enabled) {
-          console.log(`Tool ${toolId} is enabled, restarting with new configuration...`);
+          console.log(
+            `Tool ${toolId} is enabled, restarting with new configuration...`,
+          );
           addNotification(`Restarting ${tool.name}...`, "info");
 
           try {
             const restartResponse = await MCPClient.restartTool(toolId);
             if (restartResponse.success) {
-              console.log(`Tool ${toolId} restarted successfully with new configuration`);
-              addNotification(`${tool.name} restarted successfully with new configuration`, "success");
+              console.log(
+                `Tool ${toolId} restarted successfully with new configuration`,
+              );
+              addNotification(
+                `${tool.name} restarted successfully with new configuration`,
+                "success",
+              );
               // Dispatch event to update UI
               dispatchToolStatusChanged(toolId);
             } else {
-              console.error(`Failed to restart tool ${toolId}:`, restartResponse.message);
-              addNotification(`Failed to restart ${tool.name}: ${restartResponse.message}`, "error");
+              console.error(
+                `Failed to restart tool ${toolId}:`,
+                restartResponse.message,
+              );
+              addNotification(
+                `Failed to restart ${tool.name}: ${restartResponse.message}`,
+                "error",
+              );
             }
           } catch (restartError) {
             console.error(`Error restarting tool ${toolId}:`, restartError);
@@ -341,7 +392,10 @@ const InstalledServers: React.FC = () => {
         setCurrentConfigTool(null);
       } else {
         console.error("Failed to update tool configuration:", response.message);
-        addNotification(`Failed to update configuration: ${response.message}`, "error");
+        addNotification(
+          `Failed to update configuration: ${response.message}`,
+          "error",
+        );
       }
     } catch (error) {
       console.error("Error updating tool configuration:", error);
@@ -401,8 +455,8 @@ const InstalledServers: React.FC = () => {
         <div className="server-info-container">
           <div className="empty-tools-message">
             <p>
-              This application is not associated with an MCP server. It may be a standalone application or a built-in
-              tool.
+              This application is not associated with an MCP server. It may be a
+              standalone application or a built-in tool.
             </p>
           </div>
         </div>
@@ -431,7 +485,11 @@ const InstalledServers: React.FC = () => {
           <div className="server-status-badge">
             <Badge
               variant="outline"
-              className={server.process_running ? "bg-emerald-500 text-white" : "bg-red-500 text-white"}
+              className={
+                server.process_running
+                  ? "bg-emerald-500 text-white"
+                  : "bg-red-500 text-white"
+              }
             >
               {server.process_running ? "Running" : "Stopped"}
             </Badge>
@@ -452,7 +510,7 @@ const InstalledServers: React.FC = () => {
             <div className="server-tools-grid">
               {toolsForServer.map((tool) => (
                 <div key={tool.proxy_id} className="server-tool-card gap-1">
-                  <h6 className="!text-sm font-medium !mb-0">{tool.name}</h6>
+                  <h6 className="!mb-0 !text-sm font-medium">{tool.name}</h6>
                   <p className="!text-xs">{tool.description}</p>
                 </div>
               ))}
@@ -483,7 +541,10 @@ const InstalledServers: React.FC = () => {
         <div className="config-popup" onClick={(e) => e.stopPropagation()}>
           <div className="config-popup-header">
             <h3>Environment Variables - {tool.name}</h3>
-            <button className="close-popup-button" onClick={cancelEditingEnvVars}>
+            <button
+              className="close-popup-button"
+              onClick={cancelEditingEnvVars}
+            >
               ×
             </button>
           </div>
@@ -491,21 +552,29 @@ const InstalledServers: React.FC = () => {
           <div className="config-popup-content">
             <div className="env-vars-editor">
               {Object.entries(tool.config.env).map(([key, value]) => {
-                const description = typeof value === 'object' && value !== null ? value.description : "";
+                const description =
+                  typeof value === "object" && value !== null
+                    ? value.description
+                    : "";
                 // Get the default value if it exists in the object
-                const defaultValue = typeof value === 'object' && value !== null ? value.default : value;
-                
+                const defaultValue =
+                  typeof value === "object" && value !== null
+                    ? value.default
+                    : value;
+
                 return (
                   <div key={key} className="env-var-input-group">
                     <label htmlFor={`env-${key}`}>{key}</label>
                     <input
                       id={`env-${key}`}
                       type="text"
-                      value={envVarValues[key] || defaultValue || ''}
+                      value={envVarValues[key] || defaultValue || ""}
                       onChange={(e) => handleEnvVarChange(key, e.target.value)}
                       placeholder={description || key}
                     />
-                    {description && <div className="env-var-description">{description}</div>}
+                    {description && (
+                      <div className="env-var-description">{description}</div>
+                    )}
                   </div>
                 );
               })}
@@ -520,7 +589,11 @@ const InstalledServers: React.FC = () => {
             >
               {savingConfig ? "Saving..." : "Save"}
             </button>
-            <button className="cancel-env-vars-button" onClick={cancelEditingEnvVars} disabled={savingConfig}>
+            <button
+              className="cancel-env-vars-button"
+              onClick={cancelEditingEnvVars}
+              disabled={savingConfig}
+            >
               Cancel
             </button>
           </div>
@@ -542,7 +615,7 @@ const InstalledServers: React.FC = () => {
     }
   };
   return (
-    <div className="h-full px-6 flex flex-col gap-8 py-10 max-w-4xl mx-auto w-full">
+    <div className="mx-auto flex h-full w-full max-w-4xl flex-col gap-8 px-6 py-10">
       {/* Notifications */}
       <div className="notification-container">
         {notifications.map((notification) => (
@@ -555,47 +628,60 @@ const InstalledServers: React.FC = () => {
         ))}
       </div>
       <div className="flex flex-col space-y-1.5">
-        <h1 className="font-semibold tracking-tight text-2xl">My Applications</h1>
-        <p className="text-sm text-muted-foreground">Manage your installed AI applications and MCP tools.</p>
+        <h1 className="text-2xl font-semibold tracking-tight">
+          My Applications
+        </h1>
+        <p className="text-muted-foreground text-sm">
+          Manage your installed AI applications and MCP tools.
+        </p>
       </div>
 
       {loading ? (
         <div className="loading-message">Loading installed applications...</div>
       ) : installedTools.length === 0 ? (
-        <div className="py-10 flex flex-col gap-2 items-center justify-center text-muted-foreground">
-          <p>You don't have any applications installed yet.</p>
+        <div className="text-muted-foreground flex flex-col items-center justify-center gap-2 py-10">
+          <p>You don&apos;t have any applications installed yet.</p>
           <p>Visit the AI App Store to discover and install applications.</p>
         </div>
       ) : (
-        <div className="grid grid-cols-2 gap-6 w-full">
+        <div className="grid w-full grid-cols-2 gap-6">
           {installedTools.map((tool) => (
-            <Card className="overflow-hidden border-slate-200 shadow-none gap-3 ">
+            <Card
+              key={tool.id}
+              className="gap-3 overflow-hidden border-slate-200 shadow-none"
+            >
               <CardHeader className="">
-                <div className="flex justify-between items-center">
+                <div className="flex items-center justify-between">
                   <CardTitle className="text-lg">{tool.name}</CardTitle>
                   <div className="flex items-center gap-2">
-                    {tool.config && tool.config.env && Object.keys(tool.config.env).length > 0 && (
-                      <Tooltip>
-                        <TooltipTrigger>
-                          <Button
-                            variant="ghost"
-                            onClick={(e: React.MouseEvent) => {
-                              e.stopPropagation();
-                              startEditingEnvVars(tool.id, e);
-                            }}
-                          >
-                            <Settings className="w-4 h-4" />
-                          </Button>
-                        </TooltipTrigger>
-                        <TooltipContent>Configure Environment Variables</TooltipContent>
-                      </Tooltip>
-                    )}
+                    {tool.config &&
+                      tool.config.env &&
+                      Object.keys(tool.config.env).length > 0 && (
+                        <Tooltip>
+                          <TooltipTrigger>
+                            <Button
+                              variant="ghost"
+                              onClick={(e: React.MouseEvent) => {
+                                e.stopPropagation();
+                                startEditingEnvVars(tool.id, e);
+                              }}
+                            >
+                              <Settings className="h-4 w-4" />
+                            </Button>
+                          </TooltipTrigger>
+                          <TooltipContent>
+                            Configure Environment Variables
+                          </TooltipContent>
+                        </Tooltip>
+                      )}
 
                     <div className="flex items-center gap-2">
                       <span
                         className={cn(
                           "text-sm",
-                          tool.enabled ? "text-emerald-600 dark:text-emerald-400" : "text-slate-500"
+                          tool.enabled
+                            ? "text-emerald-600 dark:text-emerald-400"
+                            : "text-slate-500",
                         )}
                       >
                         {tool.enabled ? "Enabled" : "Disabled"}
@@ -612,8 +698,10 @@ const InstalledServers: React.FC = () => {
                 </div>
               </CardHeader>
 
-              <CardContent className="pb-0 space-y-3">
-                <CardDescription className="line-clamp-2 mt-1">{tool.description}</CardDescription>
+              <CardContent className="space-y-3 pb-0">
+                <CardDescription className="mt-1 line-clamp-2">
+                  {tool.description}
+                </CardDescription>
                 {/* {tool.server_id ? (
                   <div className="flex items-center gap-1.5">
                     <div
@@ -623,22 +711,33 @@ const InstalledServers: React.FC = () => {
                   </div>
                 ) : null} */}
 
-                <div className="server-status-indicator" onClick={(e) => toggleExpandTool(tool.id, e)}>
+                <div
+                  className="server-status-indicator"
+                  onClick={(e) => toggleExpandTool(tool.id, e)}
+                >
                   {tool.server_id ? (
                     <div className="flex items-center gap-1">
-                      <span className={`server-status-dot ${tool.process_running ? "running" : "stopped"}`}></span>
-                      <span className="server-status-text">Status: {tool.process_running ? "Running" : "Stopped"}</span>
+                      <span
+                        className={`server-status-dot ${tool.process_running ? "running" : "stopped"}`}
+                      ></span>
+                      <span className="server-status-text">
+                        Status: {tool.process_running ? "Running" : "Stopped"}
+                      </span>
                     </div>
                   ) : (
-                    <span className="server-status-text">Click to view details</span>
+                    <span className="server-status-text">
+                      Click to view details
+                    </span>
                   )}
                   <span className="flex items-center gap-1">
                     {expandedToolId === tool.id ? (
-                      <ChevronDown className="w-4 h-4" />
+                      <ChevronDown className="h-4 w-4" />
                     ) : (
-                      <ChevronRight className="w-4 h-4" />
+                      <ChevronRight className="h-4 w-4" />
                     )}
-                    {expandedToolId === tool.id ? "Hide details" : "Show details"}
+                    {expandedToolId === tool.id
+                      ? "Hide details"
+                      : "Show details"}
                   </span>
                 </div>
 

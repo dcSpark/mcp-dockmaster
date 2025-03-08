@@ -2,14 +2,26 @@ import React, { useState, useEffect } from "react";
 import { useVirtualizer } from "@tanstack/react-virtual";
 import MCPClient from "../lib/mcpClient";
 import { getAvailableTools, getCategories } from "../lib/registry";
-import { TOOL_UNINSTALLED, TOOL_INSTALLED, dispatchToolInstalled, dispatchToolUninstalled } from "../lib/events";
+import {
+  TOOL_UNINSTALLED,
+  TOOL_INSTALLED,
+  dispatchToolInstalled,
+  dispatchToolUninstalled,
+} from "../lib/events";
 import "./Registry.css";
 
 // Import runner icons
 import dockerIcon from "../assets/docker.svg";
 import nodeIcon from "../assets/node.svg";
 import pythonIcon from "../assets/python.svg";
-import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "./ui/card";
+import {
+  Card,
+  CardContent,
+  CardDescription,
+  CardFooter,
+  CardHeader,
+  CardTitle,
+} from "./ui/card";
 import { Button } from "./ui/button";
 import { Badge } from "./ui/badge";
 import { Skeleton } from "./ui/skeleton";
@@ -79,23 +91,43 @@ const Registry: React.FC = () => {
     // When a tool is uninstalled, update its status in the registry
     const handleToolUninstalled = (event: CustomEvent<{ toolId: string }>) => {
       const { toolId } = event.detail;
-      setAvailableTools((prev) => prev.map((tool) => (tool.id === toolId ? { ...tool, installed: false } : tool)));
+      setAvailableTools((prev) =>
+        prev.map((tool) =>
+          tool.id === toolId ? { ...tool, installed: false } : tool,
+        ),
+      );
     };
 
     // When a tool is installed elsewhere, update its status in the registry
     const handleToolInstalled = (event: CustomEvent<{ toolId: string }>) => {
       const { toolId } = event.detail;
-      setAvailableTools((prev) => prev.map((tool) => (tool.id === toolId ? { ...tool, installed: true } : tool)));
+      setAvailableTools((prev) =>
+        prev.map((tool) =>
+          tool.id === toolId ? { ...tool, installed: true } : tool,
+        ),
+      );
     };
 
     // Add event listeners
-    document.addEventListener(TOOL_UNINSTALLED, handleToolUninstalled as EventListener);
-    document.addEventListener(TOOL_INSTALLED, handleToolInstalled as EventListener);
+    document.addEventListener(
+      TOOL_UNINSTALLED,
+      handleToolUninstalled as EventListener,
+    );
+    document.addEventListener(
+      TOOL_INSTALLED,
+      handleToolInstalled as EventListener,
+    );
 
     // Clean up event listeners on unmount
     return () => {
-      document.removeEventListener(TOOL_UNINSTALLED, handleToolUninstalled as EventListener);
-      document.removeEventListener(TOOL_INSTALLED, handleToolInstalled as EventListener);
+      document.removeEventListener(
+        TOOL_UNINSTALLED,
+        handleToolUninstalled as EventListener,
+      );
+      document.removeEventListener(
+        TOOL_INSTALLED,
+        handleToolInstalled as EventListener,
+      );
     };
   }, []);
 
@@ -116,7 +148,8 @@ const Registry: React.FC = () => {
         // Check if tool is installed by ID or by name (in case IDs don't match)
         const isInstalled = installedTools.some(
           (installedTool) =>
-            installedTool.id === tool.id || installedTool.name.toLowerCase() === tool.name.toLowerCase()
+            installedTool.id === tool.id ||
+            installedTool.name.toLowerCase() === tool.name.toLowerCase(),
         );
 
         // Use lowercase name as key to avoid case-sensitivity issues
@@ -155,12 +188,18 @@ const Registry: React.FC = () => {
     // Double-check if the tool is already installed before proceeding
     const installedTools = await MCPClient.listTools();
     const isAlreadyInstalled = installedTools.some(
-      (installedTool) => installedTool.id === tool.id || installedTool.name.toLowerCase() === tool.name.toLowerCase()
+      (installedTool) =>
+        installedTool.id === tool.id ||
+        installedTool.name.toLowerCase() === tool.name.toLowerCase(),
     );
 
     if (isAlreadyInstalled) {
       // Tool is already installed, update UI and don't try to install again
-      setAvailableTools((prev) => prev.map((item) => (item.id === tool.id ? { ...item, installed: true } : item)));
+      setAvailableTools((prev) =>
+        prev.map((item) =>
+          item.id === tool.id ? { ...item, installed: true } : item,
+        ),
+      );
       return;
     }
 
@@ -177,7 +216,13 @@ const Registry: React.FC = () => {
         authentication = { env: tool.config.env };
       }
 
-      console.log("Registering tool:", JSON.stringify(tool, null, 2), tool.runtime, entryPoint, authentication);
+      console.log(
+        "Registering tool:",
+        JSON.stringify(tool, null, 2),
+        tool.runtime,
+        entryPoint,
+        authentication,
+      );
       const response = await MCPClient.registerTool({
         tool_id: tool.id,
         tool_name: tool.name,
@@ -190,7 +235,11 @@ const Registry: React.FC = () => {
 
       if (response.success) {
         // Update tool as installed
-        setAvailableTools((prev) => prev.map((item) => (item.id === tool.id ? { ...item, installed: true } : item)));
+        setAvailableTools((prev) =>
+          prev.map((item) =>
+            item.id === tool.id ? { ...item, installed: true } : item,
+          ),
+        );
 
         // Dispatch event that a tool was installed
         dispatchToolInstalled(tool.id);
@@ -207,7 +256,11 @@ const Registry: React.FC = () => {
       setUninstalling(id);
 
       // Update the UI optimistically
-      setAvailableTools((prev) => prev.map((tool) => (tool.id === id ? { ...tool, installed: false } : tool)));
+      setAvailableTools((prev) =>
+        prev.map((tool) =>
+          tool.id === id ? { ...tool, installed: false } : tool,
+        ),
+      );
 
       // Get the tool from the registry
       const registryTool = availableTools.find((tool) => tool.id === id);
@@ -218,12 +271,18 @@ const Registry: React.FC = () => {
 
       // Get the actual tool ID from the backend by matching names
       const installedTools = await MCPClient.listTools();
-      const matchingTool = installedTools.find((tool) => tool.name.toLowerCase() === registryTool.name.toLowerCase());
+      const matchingTool = installedTools.find(
+        (tool) => tool.name.toLowerCase() === registryTool.name.toLowerCase(),
+      );
 
       if (!matchingTool) {
         console.error("Tool not found in installed tools:", registryTool.name);
         // Revert UI change
-        setAvailableTools((prev) => prev.map((tool) => (tool.id === id ? { ...tool, installed: true } : tool)));
+        setAvailableTools((prev) =>
+          prev.map((tool) =>
+            tool.id === id ? { ...tool, installed: true } : tool,
+          ),
+        );
         return;
       }
 
@@ -241,7 +300,11 @@ const Registry: React.FC = () => {
       } else {
         // If the API call fails, revert the UI change
         console.error("Failed to uninstall tool:", response.message);
-        setAvailableTools((prev) => prev.map((tool) => (tool.id === id ? { ...tool, installed: true } : tool)));
+        setAvailableTools((prev) =>
+          prev.map((tool) =>
+            tool.id === id ? { ...tool, installed: true } : tool,
+          ),
+        );
       }
     } catch (error) {
       console.error("Error uninstalling tool:", error);
@@ -280,11 +343,32 @@ const Registry: React.FC = () => {
   const getRunnerIcon = (runtime: string) => {
     switch (runtime.toLowerCase()) {
       case "docker":
-        return <img src={dockerIcon} alt="Docker" className="runner-icon" title="Docker" />;
+        return (
+          <img
+            src={dockerIcon}
+            alt="Docker"
+            className="runner-icon"
+            title="Docker"
+          />
+        );
       case "node":
-        return <img src={nodeIcon} alt="Node.js" className="runner-icon" title="Node.js" />;
+        return (
+          <img
+            src={nodeIcon}
+            alt="Node.js"
+            className="runner-icon"
+            title="Node.js"
+          />
+        );
       case "python":
-        return <img src={pythonIcon} alt="Python/UV" className="runner-icon" title="Python/UV" />;
+        return (
+          <img
+            src={pythonIcon}
+            alt="Python/UV"
+            className="runner-icon"
+            title="Python/UV"
+          />
+        );
       default:
         return <span className="runner-icon unknown">?</span>;
     }
@@ -305,7 +389,9 @@ const Registry: React.FC = () => {
   });
 
   // Get visible categories (first 5 if not showing all)
-  const visibleCategories = showAllCategories ? categories : categories.slice(0, 12);
+  const visibleCategories = showAllCategories
+    ? categories
+    : categories.slice(0, 12);
 
   // Set up the virtualizer
   const rowVirtualizer = useVirtualizer({
@@ -317,43 +403,52 @@ const Registry: React.FC = () => {
   });
 
   return (
-    <div className="h-full px-6 flex flex-col gap-8 py-10 pb-4 max-w-4xl mx-auto w-full">
-      <div className="flex flex-col space-y-1.5 ">
-        <h1 className="font-semibold tracking-tight text-2xl">AI App Store</h1>
-        <p className="text-sm text-muted-foreground">Discover and install AI applications and MCP tools.</p>
+    <div className="mx-auto flex h-full w-full max-w-4xl flex-col gap-8 px-6 py-10 pb-4">
+      <div className="flex flex-col space-y-1.5">
+        <h1 className="text-2xl font-semibold tracking-tight">AI App Store</h1>
+        <p className="text-muted-foreground text-sm">
+          Discover and install AI applications and MCP tools.
+        </p>
       </div>
 
       <div className="flex flex-col gap-4">
-        <div className="relative flex-1 max-h-12 h-full min-h-12 shrink-0">
-          <div className="absolute top-4 left-3 flex items-center pointer-events-none">
+        <div className="relative h-full max-h-12 min-h-12 flex-1 shrink-0">
+          <div className="pointer-events-none absolute top-4 left-3 flex items-center">
             <Search size={18} className="text-gray-400" />
           </div>
           <input
             type="text"
             value={searchTerm}
             onChange={(e) => setSearchTerm(e.target.value)}
-            className="size-full pl-10 pr-4 py-2 bg-background text-foreground border placeholder:text-muted-foreground rounded-lg focus:outline-none focus:ring-1 focus:ring-neutral-900/60"
+            className="bg-background text-foreground placeholder:text-muted-foreground size-full rounded-lg border py-2 pr-4 pl-10 focus:ring-1 focus:ring-neutral-900/60 focus:outline-none"
             placeholder="Search for tools..."
             aria-label="Search for tools"
           />
         </div>
 
         {searchTerm && (
-          <div className="text-sm text-muted-foreground">
-            Found {filteredTools.length} result{filteredTools.length !== 1 ? 's' : ''}
+          <div className="text-muted-foreground text-sm">
+            Found {filteredTools.length} result
+            {filteredTools.length !== 1 ? "s" : ""}
           </div>
         )}
 
-        <div className={`flex items-center gap-2 pb-2 flex-wrap`}>
-          <div className={`flex gap-2 flex-wrap ${showAllCategories ? 'max-h-[300px] overflow-y-auto' : ''}`}>
+        <div className={`flex flex-wrap items-center gap-2 pb-2`}>
+          <div
+            className={`flex flex-wrap gap-2 ${showAllCategories ? "max-h-[300px] overflow-y-auto" : ""}`}
+          >
             {visibleCategories.map(([category, count]) => (
               <Badge
                 key={category}
                 variant={selectedCategory === category ? "default" : "outline"}
                 className="cursor-pointer whitespace-nowrap"
-                onClick={() => setSelectedCategory(selectedCategory === category ? null : category)}
+                onClick={() =>
+                  setSelectedCategory(
+                    selectedCategory === category ? null : category,
+                  )
+                }
               >
-                {category} { count > 1 ? `(${count})` : '' }
+                {category} {count > 1 ? `(${count})` : ""}
               </Badge>
             ))}
           </div>
@@ -376,19 +471,22 @@ const Registry: React.FC = () => {
       </div>
 
       {loading ? (
-        <div className="flex justify-center items-center flex-col gap-3 ">
+        <div className="flex flex-col items-center justify-center gap-3">
           {Array.from({ length: 3 }).map((_, index) => (
-            <Skeleton key={index} className="w-full h-40 bg-muted rounded-md" />
+            <Skeleton key={index} className="bg-muted h-40 w-full rounded-md" />
           ))}
         </div>
       ) : (
         <>
           {filteredTools.length === 0 ? (
-            <div className="py-10 text-center text-sm text-muted-foreground">
+            <div className="text-muted-foreground py-10 text-center text-sm">
               <p>No tools found matching your search criteria.</p>
             </div>
           ) : (
-            <div ref={parentRef} style={{ height: "100%", overflow: "auto", contain: "strict" }}>
+            <div
+              ref={parentRef}
+              style={{ height: "100%", overflow: "auto", contain: "strict" }}
+            >
               <div
                 style={{
                   height: `${rowVirtualizer.getTotalSize()}px`,
@@ -402,7 +500,6 @@ const Registry: React.FC = () => {
                   return (
                     <div
                       key={tool.id}
-                      // className=" top-0 left-0 pr-4"
                       style={{
                         position: "absolute",
                         width: "100%",
@@ -411,11 +508,13 @@ const Registry: React.FC = () => {
                         boxSizing: "border-box",
                       }}
                     >
-                      <Card className="overflow-hidden gap-4 w-full border-slate-200 shadow-none ">
+                      <Card className="w-full gap-4 overflow-hidden border-slate-200 shadow-none">
                         <CardHeader className="pb-0">
-                          <div className="flex justify-between items-start">
+                          <div className="flex items-start justify-between">
                             <div className="flex items-center gap-3">
-                              <div className="bg-muted rounded-md p-1 size-8 ">{getRunnerIcon(tool.runtime)}</div>
+                              <div className="bg-muted size-8 rounded-md p-1">
+                                {getRunnerIcon(tool.runtime)}
+                              </div>
 
                               <CardTitle className="text-lg">
                                 {tool.name}
@@ -423,9 +522,12 @@ const Registry: React.FC = () => {
                                   href={tool.publisher.url}
                                   target="_blank"
                                   rel="noopener noreferrer"
-                                  className="underline text-foreground"
+                                  className="text-foreground underline"
                                 >
-                                  <Link size={14} className="inline-block ml-1" />
+                                  <Link
+                                    size={14}
+                                    className="ml-1 inline-block"
+                                  />
                                 </a>
                               </CardTitle>
                               {tool.installed && (
@@ -437,13 +539,14 @@ const Registry: React.FC = () => {
                           </div>
                         </CardHeader>
                         <CardContent>
-                          <CardDescription className="line-clamp-2">{tool.description}</CardDescription>
+                          <CardDescription className="line-clamp-2">
+                            {tool.description}
+                          </CardDescription>
                         </CardContent>
-                        <CardFooter className="pt-0 flex justify-between items-center">
+                        <CardFooter className="flex items-center justify-between pt-0">
                           {tool.publisher && (
-                            <div className="flex items-center gap-1 text-sm text-muted-foreground">
-                              <span>By </span>{" "}
-                              {tool.publisher.name}
+                            <div className="text-muted-foreground flex items-center gap-1 text-sm">
+                              <span>By </span> {tool.publisher.name}
                             </div>
                           )}
                           {tool.installed ? (
@@ -453,16 +556,26 @@ const Registry: React.FC = () => {
                               disabled={uninstalling === tool.id}
                               type="button"
                             >
-                              {uninstalling === tool.id ? "Uninstalling..." : "Uninstall"}
+                              {uninstalling === tool.id
+                                ? "Uninstalling..."
+                                : "Uninstall"}
                             </Button>
                           ) : (
                             <Button
                               variant="outline"
                               type="button"
-                              onClick={() => !tool.installed && installTool(tool)}
-                              disabled={tool.installed || installing === tool.id}
+                              onClick={() =>
+                                !tool.installed && installTool(tool)
+                              }
+                              disabled={
+                                tool.installed || installing === tool.id
+                              }
                             >
-                              {tool.installed ? "Installed" : installing === tool.id ? "Installing..." : "Install"}
+                              {tool.installed
+                                ? "Installed"
+                                : installing === tool.id
+                                  ? "Installing..."
+                                  : "Install"}
                             </Button>
                           )}
                         </CardFooter>
