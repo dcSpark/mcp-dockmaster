@@ -1,37 +1,37 @@
 {
-  "name": "mcp-core",
+  "name": "mcp-dockmaster-cli",
   "$schema": "../../node_modules/nx/schemas/project-schema.json",
   "projectType": "library",
-  "sourceRoot": "libs/mcp-core/src",
+  "sourceRoot": "apps/mcp-dockmaster-cli/src",
   "targets": {
     "build": {
       "executor": "nx:run-commands",
       "options": {
-        "cwd": "libs/mcp-core",
+        "cwd": "apps/mcp-dockmaster-cli",
         "command": "cargo build"
       }
     },
     "test": {
       "executor": "nx:run-commands",
       "options": {
-        "cwd": "libs/mcp-core",
+        "cwd": "apps/mcp-dockmaster-cli",
         "command": "cargo test"
       }
     },
     "lint": {
       "executor": "nx:run-commands",
       "options": {
-        "cwd": "libs/mcp-core",
+        "cwd": "apps/mcp-dockmaster-cli",
         "command": "cargo clippy -- -D warnings"
       }
     },
     "clean": {
       "executor": "nx:run-commands",
       "options": {
-        "cwd": "libs/mcp-core",
+        "cwd": "apps/mcp-dockmaster-cli",
         "command": "cargo clean"
       }
     }
   },
-  "tags": ["rust", "core"]
+  "tags": ["rust", "dockmaster-cli"]
 }

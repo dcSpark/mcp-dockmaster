@@ -1,38 +1,30 @@
 use serde_json::json;
-use std::sync::Arc;
-use tokio::sync::RwLock;
 
 #[cfg(test)]
 mod tests {
     use mcp_core::{
-        mcp_proxy, mcp_state::MCPState, models::types::ToolExecutionRequest, registry::ToolRegistry,
+        core::{mcp_core::MCPCore, mcp_core_proxy_ext::McpCoreProxyExt},
+        init_logging,
+        models::types::ToolExecutionRequest,
     };
 
     use super::*;
-    use mcp_core::database;
-    use mcp_core::process_manager::ProcessManager;
-    use std::collections::HashMap;
 
     #[tokio::test]
     async fn test_mcp_core_with_registry() -> Result<(), String> {
         // Create a unique database path for this test
         use tempfile::tempdir;
 
+        init_logging();
         let temp_dir = tempdir().map_err(|e| format!("Failed to create temp dir: {}", e))?;
-        let db_path = temp_dir.path().join("test_mcp_core.db");
+        let db_path = temp_dir.path().join("test_mcp_core2.db");
 
-        // Initialize registry with custom database path
-        let registry = {
-            let db_manager = database::DBManager::with_path(db_path)?;
-            ToolRegistry::with_db_manager(db_manager)?
-        };
-
-        // Initialize MCP state
-        let mcp_state = MCPState {
-            tool_registry: Arc::new(RwLock::new(registry)),
-            process_manager: Arc::new(RwLock::new(ProcessManager::new())),
-            server_tools: Arc::new(RwLock::new(HashMap::new())),
-        };
+        let mcp_core = MCPCore::new(db_path);
+        mcp_core.init().await.map_err(|e| {
+            let message = format!("error initializing mcp core: {:?}", e);
+            eprintln!("{}", message);
+            message
+        })?;
 
         // Get the absolute path to the script
         let current_dir = std::env::current_dir().map_err(|e| e.to_string())?;
@@ -62,14 +54,15 @@ mod tests {
         );
 
         // Register tool
-        let response =
-            mcp_proxy::register_tool(&mcp_state, serde_json::from_value(request).unwrap()).await?;
+        let response = mcp_core
+            .register_tool(serde_json::from_value(request).unwrap())
+            .await?;
         let tool_id = response.tool_id.ok_or("No tool ID returned")?;
 
         eprintln!("Received tool_id from registration: {}", tool_id);
 
         // List all available tools
-        let all_tools = mcp_proxy::list_all_server_tools(&mcp_state).await?;
+        let all_tools = mcp_core.list_all_server_tools().await?;
         eprintln!(
             "Available tools: {}",
             serde_json::to_string_pretty(&all_tools).unwrap()
@@ -81,7 +74,7 @@ mod tests {
             parameters: json!({}),
         };
 
-        let result = mcp_core::mcp_proxy::execute_proxy_tool(&mcp_state, request).await?;
+        let result = mcp_core.execute_proxy_tool(request).await?;
 
         // Print the execution result
         eprintln!(
@@ -123,7 +116,7 @@ mod tests {
             }),
         };
 
-        let result = mcp_core::mcp_proxy::execute_proxy_tool(&mcp_state, request).await?;
+        let result = mcp_core.execute_proxy_tool(request).await?;
 
         eprintln!(
             "Tool execution result (with input): {}",
@@ -165,7 +158,7 @@ mod tests {
             }),
         };
 
-        let result = mcp_core::mcp_proxy::execute_proxy_tool(&mcp_state, request).await?;
+        let result = mcp_core.execute_proxy_tool(request).await?;
 
         eprintln!(
             "Tool execution result (with config): {}",
@@ -200,7 +193,7 @@ mod tests {
         }
 
         // Cleanup
-        mcp_state.kill_all_processes().await;
+        let _ = mcp_core.kill_all_processes().await;
 
         Ok(())
     }

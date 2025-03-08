@@ -1,4 +1,4 @@
-import { ToolResultSchema } from "../types.js";
+import { ToolResultSchema } from "../types";
 
 /**
  * Utility function to create an error response

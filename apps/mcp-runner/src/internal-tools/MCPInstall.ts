@@ -1,5 +1,5 @@
-import { proxyRequest } from "../proxyRequest.js";
-import { Tool } from "../types.js";
+import { proxyRequest } from "../proxyRequest";
+import { Tool } from "../types";
 
 export class MCPInstall {
   public static name = 'install_mcp_servers_and_tools';

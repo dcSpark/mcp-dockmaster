@@ -1,7 +1,7 @@
 {
-  "name": "mcp-runner",
+  "name": "mcp-proxy-server",
   "projectType": "application",
-  "sourceRoot": "apps/mcp-runner/src",
+  "sourceRoot": "apps/mcp-runner",
   "targets": {
     "build": {
       "executor": "nx:run-commands",
@@ -10,10 +10,10 @@
         "cwd": "apps/mcp-runner"
       }
     },
-    "watch": {
+    "serve": {
       "executor": "nx:run-commands",
       "options": {
-        "command": "npm run watch",
+        "command": "npm run dev",
         "cwd": "apps/mcp-runner"
       }
     },

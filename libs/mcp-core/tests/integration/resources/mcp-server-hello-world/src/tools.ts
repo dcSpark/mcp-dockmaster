@@ -1,4 +1,4 @@
-import { helloWorldHandler, helloWorldWithInputHandler, helloWorldWithConfigHandler } from "./handlers/hello-world.js";
+import { helloWorldHandler, helloWorldWithInputHandler, helloWorldWithConfigHandler } from "./handlers/hello-world";
 
 export const tools = [
   {

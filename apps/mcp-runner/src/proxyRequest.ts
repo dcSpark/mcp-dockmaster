@@ -1,4 +1,4 @@
-import { debugLog } from "./logger.js";
+import { debugLog } from "./logger";
 // Target server URL
 
 const TARGET_SERVER_URL = 'http://localhost:3000/mcp-proxy';

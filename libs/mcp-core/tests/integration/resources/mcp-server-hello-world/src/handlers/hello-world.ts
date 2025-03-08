@@ -1,6 +1,6 @@
-import { ToolResultSchema } from "../types.js";
-import { createErrorResponse, createSuccessResponse } from "./utils.js";
-import { HelloWorldInput, HelloWorldConfigInput } from "./hello-world.types.js";
+import { ToolResultSchema } from "../types";
+import { createErrorResponse, createSuccessResponse } from "./utils";
+import { HelloWorldInput, HelloWorldConfigInput } from "./hello-world.types";
 
 export const helloWorldHandler = async (): Promise<ToolResultSchema<any>> => {
   try {

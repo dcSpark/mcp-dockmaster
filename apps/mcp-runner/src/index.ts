@@ -1,5 +1,3 @@
-#!/usr/bin/env node
-
 /**
  * MCP Proxy Server
  * This server proxies MCP Protocol commands to a server running on localhost:3000
@@ -15,10 +13,10 @@ import {
   GetPromptRequestSchema,
 } from "@modelcontextprotocol/sdk/types.js";
 import { z } from "zod";
-import { Tools } from './types.js';
-import { proxyRequest } from "./proxyRequest.js";
-import { debugLog } from "./logger.js";
-import { initInternalTools, injectInternalTools, runInternalTool } from "./internal-tools/index.js";
+import { Tools } from './types';
+import { proxyRequest } from "./proxyRequest";
+import { debugLog } from "./logger";
+import { initInternalTools, injectInternalTools, runInternalTool } from "./internal-tools/index";
 
 debugLog('Starting MCP Proxy Server script');
 

@@ -1,6 +1,13 @@
 use clap::{Parser, Subcommand};
 use log::{error, info};
-use mcp_core::{init_logging, mcp_proxy, mcp_state::MCPState};
+use mcp_core::{
+    core::{
+        mcp_core::MCPCore, mcp_core_database_ext::McpCoreDatabaseExt,
+        mcp_core_proxy_ext::McpCoreProxyExt,
+    },
+    init_logging,
+    utils::default_storage_path,
+};
 
 #[derive(Parser)]
 #[command(author, version, about, long_about = None)]
@@ -93,16 +100,20 @@ async fn main() {
     let cli = Cli::parse();
 
     // Initialize MCP state
-    let mcp_state = MCPState::new();
+    let storage_path = match default_storage_path() {
+        Ok(path) => path,
+        Err(e) => {
+            eprintln!("failed to get storage path: {}", e);
+            std::process::exit(1);
+        }
+    };
+    let database_path = storage_path.join("mcp_dockmaster.db");
+    let mcp_core = MCPCore::new(database_path);
+    mcp_core.init().await.unwrap();
 
     // Handle commands
     match cli.command {
-        Commands::Register {
-            name,
-            description,
-            tool_type,
-            entry_point,
-        } => {
+        Commands::Register { name, .. } => {
             info!("Registering tool: {}", name);
 
             // We can't directly create ToolRegistrationRequest due to private fields
@@ -114,7 +125,7 @@ async fn main() {
             info!("Listing tools");
 
             // Get all server data
-            match mcp_proxy::get_all_server_data(&mcp_state).await {
+            match mcp_core.get_all_server_data().await {
                 Ok(data) => {
                     // Print servers
                     if let Some(servers) = data.get("servers").and_then(|s| s.as_array()) {
@@ -205,10 +216,7 @@ async fn main() {
                 }
             }
         }
-        Commands::Execute {
-            tool_id,
-            parameters,
-        } => {
+        Commands::Execute { tool_id, .. } => {
             info!("Executing tool: {}", tool_id);
 
             // We can't directly create ToolExecutionRequest due to private fields
@@ -224,7 +232,7 @@ async fn main() {
             println!("Tool status update is not directly supported through the CLI.");
             println!("Please use the MCP Dockmaster UI to update tool status.");
         }
-        Commands::Config { tool_id, env } => {
+        Commands::Config { tool_id, .. } => {
             info!("Updating tool configuration: {}", tool_id);
 
             // We can't directly create ToolConfigUpdateRequest due to private fields
@@ -244,7 +252,7 @@ async fn main() {
             info!("Restarting tool: {}", tool_id);
 
             // Restart the tool using the direct function
-            match mcp_proxy::restart_tool_command(&mcp_state, tool_id).await {
+            match mcp_core.restart_tool_command(tool_id.clone()).await {
                 Ok(_) => {
                     println!("Tool restarted successfully");
                 }
@@ -258,9 +266,9 @@ async fn main() {
             info!("Clearing database");
 
             // Clear the database using the direct function
-            match mcp_proxy::clear_database_command().await {
-                Ok(message) => {
-                    println!("{}", message);
+            match mcp_core.clear_database().await {
+                Ok(_) => {
+                    println!("Database cleared successfully");
                 }
                 Err(e) => {
                     error!("Error clearing database: {}", e);

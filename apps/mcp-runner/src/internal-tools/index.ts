@@ -1,6 +1,6 @@
-import { Tools } from "../types.js";
-import { MCPInstall } from "./MCPInstall.js";
-import { MCPSearch } from "./MCPSearch.js";
+import { Tools } from "../types";
+import { MCPInstall } from "./MCPInstall";
+import { MCPSearch } from "./MCPSearch";
 
 
 export async function runInternalTool(params: { name: string, arguments: Record<string, any> }): Promise<{ isInternalTool: boolean, result: any }> {

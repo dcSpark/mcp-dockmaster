@@ -1,6 +1,6 @@
 import lunr from "lunr";
-import { proxyRequest } from "../proxyRequest.js";
-import { RegistryTool, Tool, Tools } from "../types.js";
+import { proxyRequest } from "../proxyRequest";
+import { RegistryTool, Tool, Tools } from "../types";
 
 type ExtendedRegistryTool = RegistryTool & {
   installed: boolean;

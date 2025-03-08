@@ -1,6 +1,6 @@
 use std::collections::HashMap;
 
-use crate::{models::types::Tool, DBManager};
+use crate::{database::db_manager::DBManager, models::types::Tool};
 
 /// ToolRegistry: database logic only
 ///
@@ -17,8 +17,8 @@ impl ToolRegistry {
     }
 
     /// Create a new ToolRegistry with a custom DBManager
-    pub fn with_db_manager(db: DBManager) -> Result<Self, String> {
-        Ok(Self { db })
+    pub fn with_db_manager(db: DBManager) -> Self {
+        Self { db }
     }
 
     /// Get a tool by ID

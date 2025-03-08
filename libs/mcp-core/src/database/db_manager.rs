@@ -1,7 +1,6 @@
 use diesel::prelude::*;
 use diesel::r2d2::{self, ConnectionManager, Pool};
 use diesel_migrations::{embed_migrations, EmbeddedMigrations, MigrationHarness};
-use directories::ProjectDirs;
 use log::info;
 use std::collections::HashMap;
 use std::fs;
@@ -18,6 +17,7 @@ pub const MIGRATIONS: EmbeddedMigrations = embed_migrations!("migrations/sqlite"
 
 type SqlitePool = Pool<ConnectionManager<SqliteConnection>>;
 
+#[derive(Clone)]
 /// Database manager for persisting application state
 pub struct DBManager {
     pool: Arc<SqlitePool>,
@@ -26,7 +26,8 @@ pub struct DBManager {
 impl DBManager {
     /// Initialize the database manager with the default database path
     pub fn new() -> Result<Self, String> {
-        let db_path = get_database_path()?;
+        let storage_path = crate::utils::default_storage_path()?;
+        let db_path = storage_path.join("mcp_dockmaster.db");
         Self::with_path(db_path)
     }
 
@@ -59,14 +60,21 @@ impl DBManager {
             .build(manager)
             .map_err(|e| format!("Failed to create connection pool: {}", e))?;
 
-        // Get a connection to initialize the database
-        let mut conn = pool
+        let db_manager = Self {
+            pool: Arc::new(pool),
+        };
+
+        info!("Database initialized at: {:?}", db_path);
+        Ok(db_manager)
+    }
+
+    pub fn apply_migrations(&self) -> Result<(), String> {
+        info!("Applying migrations");
+        // Run migrations
+        let mut conn = self
+            .pool
             .get()
             .map_err(|e| format!("Failed to get database connection: {}", e))?;
-
-        info!("Running migrations for database at {:?}", db_path);
-
-        // Run migrations
         let migration_result = conn.run_pending_migrations(MIGRATIONS);
         match &migration_result {
             Ok(migrations) => {
@@ -117,12 +125,8 @@ impl DBManager {
             .execute(&mut conn)
             .map_err(|e| format!("Failed to enable foreign keys: {}", e))?;
 
-        let db_manager = Self {
-            pool: Arc::new(pool),
-        };
-
-        info!("Database initialized at: {:?}", db_path);
-        Ok(db_manager)
+        info!("Migrations applied successfully");
+        Ok(())
     }
 
     /// Get a tool by ID
@@ -443,34 +447,4 @@ impl DBManager {
         info!("Database connection closed");
         Ok(())
     }
-}
-
-/// Get the path to the database file
-fn get_database_path() -> Result<PathBuf, String> {
-    let proj_dirs = ProjectDirs::from("com", "mcp", "dockmaster")
-        .ok_or_else(|| "Failed to determine project directories".to_string())?;
-
-    let data_dir = proj_dirs.data_dir();
-
-    // Ensure the data directory exists
-    if !data_dir.exists() {
-        fs::create_dir_all(data_dir)
-            .map_err(|e| format!("Failed to create data directory: {}", e))?;
-    }
-
-    // Check if the directory is writable
-    let test_file = data_dir.join(".write_test");
-    match fs::File::create(&test_file) {
-        Ok(_) => {
-            // Clean up the test file
-            let _ = fs::remove_file(&test_file);
-        }
-        Err(e) => {
-            return Err(format!("Data directory is not writable: {}", e));
-        }
-    }
-
-    let db_path = data_dir.join("mcp_dockmaster.db");
-    info!("Database path: {:?}", db_path);
-    Ok(db_path)
 }

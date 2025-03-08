@@ -22,6 +22,7 @@ diesel = { version = "2.1.0", features = ["sqlite", "r2d2"] }
 diesel_migrations = { version = "2.1.0", features = ["sqlite"] }
 libsqlite3-sys = { version = "0.31.0", features = ["bundled"] }
 futures = "0.3.31"
+anyhow = "1.0"
 
 [lib]
 name = "mcp_core"

@@ -8,7 +8,7 @@ import {
   ListToolsRequestSchema,
   McpError,
 } from "@modelcontextprotocol/sdk/types.js";
-import { handlers, tools } from "./tools.js";
+import { handlers, tools } from "./tools";
 
 const server = new Server({
   name: "mcp-server-hello-world",

@@ -1,15 +1,12 @@
-use std::sync::Arc;
-
 use axum::response::IntoResponse;
 use axum::{http::StatusCode, Extension, Json};
 use log::info;
 use reqwest;
 use serde::{Deserialize, Serialize};
 use serde_json::{json, Value};
-use tokio::sync::RwLock;
 
-use crate::mcp_proxy::register_tool;
-use crate::mcp_state::MCPState;
+use crate::core::mcp_core::MCPCore;
+use crate::core::mcp_core_proxy_ext::McpCoreProxyExt;
 use crate::types::ToolRegistrationRequest;
 
 #[derive(Deserialize)]
@@ -41,16 +38,16 @@ pub async fn health_check() -> impl IntoResponse {
 }
 
 pub async fn handle_mcp_request(
-    Extension(state): Extension<Arc<RwLock<MCPState>>>,
+    Extension(mcp_core): Extension<MCPCore>,
     Json(request): Json<JsonRpcRequest>,
 ) -> Json<JsonRpcResponse> {
     info!("Received MCP request: method={}", request.method);
 
     let result = match request.method.as_str() {
-        "tools/list" => handle_list_tools(state).await,
+        "tools/list" => handle_list_tools(mcp_core).await,
         "tools/call" => {
             if let Some(params) = request.params {
-                handle_invoke_tool(state, params).await
+                handle_invoke_tool(mcp_core, params).await
             } else {
                 Err(json!({
                     "code": -32602,
@@ -82,7 +79,7 @@ pub async fn handle_mcp_request(
         }
         "registry/install" => {
             if let Some(params) = request.params {
-                handle_register_tool(state, params).await
+                handle_register_tool(mcp_core, params).await
             } else {
                 Err(json!({
                     "code": -32602,
@@ -90,7 +87,7 @@ pub async fn handle_mcp_request(
                 }))
             }
         }
-        "registry/list" => handle_list_all_tools(state).await,
+        "registry/list" => handle_list_all_tools(mcp_core).await,
         _ => Err(json!({
             "code": -32601,
             "message": format!("Method not found: {}", request.method)
@@ -130,8 +127,8 @@ pub async fn handle_mcp_request(
     }
 }
 
-async fn handle_list_tools(state: Arc<RwLock<MCPState>>) -> Result<Value, Value> {
-    let mcp_state = state.read().await;
+async fn handle_list_tools(mcp_core: MCPCore) -> Result<Value, Value> {
+    let mcp_state = mcp_core.mcp_state.read().await;
     let server_tools = mcp_state.server_tools.read().await;
 
     let mut all_tools = Vec::new();
@@ -178,9 +175,8 @@ async fn handle_list_tools(state: Arc<RwLock<MCPState>>) -> Result<Value, Value>
     }))
 }
 
-async fn handle_register_tool(state: Arc<RwLock<MCPState>>, params: Value) -> Result<Value, Value> {
+async fn handle_register_tool(mcp_core: MCPCore, params: Value) -> Result<Value, Value> {
     println!("handle_register_tool: trying to register tool {:?}", params);
-    let mcp_state = state.write().await;
     let registry = fetch_tool_from_registry().await?;
     let tools = registry.get("tools").unwrap().as_array().unwrap();
 
@@ -236,7 +232,7 @@ async fn handle_register_tool(state: Arc<RwLock<MCPState>>, params: Value) -> Re
             };
 
             println!("[POST] handle_register_tool: tool {:?}", tool);
-            let r = register_tool(&mcp_state, tool).await;
+            let r = mcp_core.register_tool(tool).await;
             // Asume installation is successful
             println!("[INSTALLATION] handle_register_tool: r {:?}", r);
             Ok(json!({
@@ -310,8 +306,8 @@ async fn fetch_tool_from_registry() -> Result<Value, Value> {
     Ok(v)
 }
 
-async fn handle_list_all_tools(state: Arc<RwLock<MCPState>>) -> Result<Value, Value> {
-    let mcp_state = state.read().await;
+async fn handle_list_all_tools(mcp_core: MCPCore) -> Result<Value, Value> {
+    let mcp_state = mcp_core.mcp_state.read().await;
     let registry = mcp_state.tool_registry.read().await;
     let installed_tools = registry.get_all_tools()?;
     let mut registry_tools = fetch_tool_from_registry().await?;
@@ -365,7 +361,7 @@ async fn handle_get_prompt(_params: Value) -> Result<Value, Value> {
     }))
 }
 
-async fn handle_invoke_tool(state: Arc<RwLock<MCPState>>, params: Value) -> Result<Value, Value> {
+async fn handle_invoke_tool(mcp_core: MCPCore, params: Value) -> Result<Value, Value> {
     let tool_name = match params.get("name").and_then(|v| v.as_str()) {
         Some(name) => name,
         None => {
@@ -381,7 +377,7 @@ async fn handle_invoke_tool(state: Arc<RwLock<MCPState>>, params: Value) -> Resu
         None => json!({}),
     };
 
-    let mcp_state = state.read().await;
+    let mcp_state = mcp_core.mcp_state.read().await;
     let server_tools = mcp_state.server_tools.read().await;
 
     // Find which server has the requested tool

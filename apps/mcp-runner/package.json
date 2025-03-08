@@ -3,7 +3,6 @@
   "version": "0.1.0",
   "description": "A proxy server for MCP Protocol commands",
   "private": true,
-  "type": "module",
   "bin": {
     "mcp-proxy-server": "./build/index.js"
   },
@@ -13,7 +12,7 @@
   "scripts": {
     "build": "tsc && node -e \"require('fs').chmodSync('build/index.js', '755')\"",
     "prepare": "npm run build",
-    "watch": "tsc --watch",
+    "dev": "npx ts-node-dev --respawn src/index.ts",
     "inspector": "npx @modelcontextprotocol/inspector build/index.js"
   },
   "dependencies": {
@@ -23,8 +22,10 @@
     "zod": "^3.24.2"
   },
   "devDependencies": {
+    "@types/lunr": "^2.3.7",
     "@types/node": "^22.13.9",
     "@types/node-fetch": "3.0.2",
+    "ts-node-dev": "^2.0.0",
     "typescript": "5.8.2"
   }
 }

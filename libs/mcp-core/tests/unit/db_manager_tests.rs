@@ -1,32 +1,17 @@
 #[cfg(test)]
 mod tests {
-    use mcp_core::{models::types::Tool, DBManager};
+    use mcp_core::{database::db_manager::DBManager, models::types::Tool};
     use serial_test::serial;
-    use std::env;
     use tempfile::tempdir;
 
     // Helper function to set up a temporary database for testing
     fn setup_temp_db() -> (DBManager, tempfile::TempDir) {
-        // Get the temp directory path from the environment or use a default
-        let temp_path = env::var("MCP_DATA_DIR").unwrap_or_else(|_| {
-            std::env::temp_dir()
-                .join("mcp_test_db")
-                .to_string_lossy()
-                .into_owned()
-        });
-
-        // Remove the directory if it exists
-        if std::path::Path::new(&temp_path).exists() {
-            std::fs::remove_dir_all(&temp_path).expect("Failed to remove existing temp directory");
-        }
-
         // Create a new temporary directory
         let temp_dir = tempdir().expect("Failed to create temp directory");
 
-        // Override the project directory for testing
-        env::set_var("MCP_DATA_DIR", temp_dir.path().to_str().unwrap());
-
-        let db = DBManager::new().expect("Failed to create database");
+        let db = DBManager::with_path(temp_dir.path().join("mcp-dockmaster.db"))
+            .expect("Failed to create database");
+        db.apply_migrations().expect("Failed to apply migrations");
         (db, temp_dir)
     }
 
@@ -70,7 +55,7 @@ mod tests {
 
         // Initialize database with custom path
         let db = DBManager::with_path(db_path).expect("Failed to create database");
-
+        db.apply_migrations().expect("Failed to apply migrations");
         // Create sample tools
         let tool1 = Tool {
             name: "tool1".to_string(),
