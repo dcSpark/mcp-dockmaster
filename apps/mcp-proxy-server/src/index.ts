@@ -20,6 +20,11 @@ import { initInternalTools, injectInternalTools, runInternalTool } from "./inter
 
 debugLog('Starting MCP Proxy Server script');
 
+// Define the schema for tools/listChanged notification
+const ToolsListChangedSchema = z.object({
+  method: z.literal("tools/listChanged"),
+});
+
 /**
  * Create an MCP server with all capabilities
  */
@@ -40,6 +45,17 @@ const server = new Server(
 );
 
 debugLog('Server instance created');
+
+// Add notification handler for tools/listChanged
+server.setNotificationHandler(ToolsListChangedSchema, async () => {
+  debugLog('Received tools/listChanged notification');
+  // Notify any connected clients that they should refresh their tool list
+  server.notification({
+    method: "notifications/tools/list_changed",
+    params: {}
+  });
+});
+
 debugLog('Setting up request handlers');
 
 // Handler for listing resources
