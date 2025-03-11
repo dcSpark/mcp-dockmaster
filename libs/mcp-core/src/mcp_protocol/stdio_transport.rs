@@ -283,3 +283,40 @@ pub async fn discover_server_tools(
     info!("No tools found in response: {}", response_line.trim());
     Ok(Vec::new())
 }
+
+/// Send a notification that the tool list has changed
+pub async fn notify_tools_list_changed(
+    stdin: &mut tokio::process::ChildStdin,
+) -> Result<(), String> {
+    let notification = json!({
+        "jsonrpc": "2.0",
+        "method": "notifications/tools/list_changed"
+    });
+
+    let notification_str = serde_json::to_string(&notification)
+        .map_err(|e| format!("Failed to serialize notification: {}", e))?
+        + "\n";
+
+    // Write notification to stdin
+    match stdin.write_all(notification_str.as_bytes()).await {
+        Ok(_) => {}
+        Err(e) => {
+            // If the pipe is broken, the process might have died
+            if e.kind() == std::io::ErrorKind::BrokenPipe {
+                return Err(format!("Process has died (broken pipe)"));
+            }
+            return Err(format!("Failed to write to process stdin: {}", e));
+        }
+    }
+
+    match stdin.flush().await {
+        Ok(_) => Ok(()),
+        Err(e) => {
+            // If the pipe is broken, the process might have died
+            if e.kind() == std::io::ErrorKind::BrokenPipe {
+                return Err(format!("Process has died (broken pipe during flush)"));
+            }
+            return Err(format!("Failed to flush stdin: {}", e));
+        }
+    }
+}
