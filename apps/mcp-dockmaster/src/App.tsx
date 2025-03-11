@@ -103,7 +103,7 @@ function AppSidebar() {
       </SidebarContent>
       <SidebarSeparator />
       <SidebarFooter>
-        <div className="text-sidebar-foreground/70 text-xs text-center">
+        <div className="text-sidebar-foreground/70 text-center text-xs">
           App Version: {appVersion}
         </div>
       </SidebarFooter>
@@ -133,9 +133,9 @@ const AppRoutes = () => {
               </Routes>
             </SidebarInset>
           </SidebarProvider>
-          <Toaster position="top-right" theme="light" />
         </InitMcpOverlay>
       </TooltipProvider>
+      <Toaster position="top-right" theme="light" />
     </QueryClientProvider>
   );
 };

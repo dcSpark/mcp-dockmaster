@@ -6,6 +6,9 @@ import { useAppStore } from "@/store/app";
 import { Progress } from "./ui/progress";
 import { TermsConsentDialog } from "./terms-consent-dialog";
 import { getUserConsent } from "../lib/localStorage";
+import { toast } from "sonner";
+
+const INITIALIZATION_TOAST_ID = "MCP-INITIALIZATION-TOAST";
 
 interface LoadingOverlayProps {
   children: React.ReactNode;
@@ -26,13 +29,15 @@ const InitMCPOverlay: React.FC<LoadingOverlayProps> = ({
 
   useEffect(() => {
     setAppState("pending");
-    // Set up a listener for the initialization complete event
     const unlisten = listen("mcp-initialization-complete", () => {
       console.log("Received initialization complete event");
 
-      // Trigger a refresh of all tools
       dispatchServerStatusChanged("all");
       setAppState("ready");
+      toast.success("MCP services initialized!", {
+        id: INITIALIZATION_TOAST_ID,
+        description: null,
+      });
     });
 
     // Poll for initialization status
@@ -44,18 +49,35 @@ const InitMCPOverlay: React.FC<LoadingOverlayProps> = ({
         if (isComplete) {
           console.log("Initialization is complete");
 
-          // Trigger a refresh of all tools
           dispatchServerStatusChanged("all");
 
           setAppState("ready");
+          toast.success("MCP services initialized!", {
+            id: INITIALIZATION_TOAST_ID,
+            description: null,
+          });
           clearInterval(interval);
         } else {
-          // Increment progress for visual feedback
+          toast.loading("Initializing MCP Services", {
+            description: (
+              <div className="flex w-full flex-col gap-2">
+                <p className="mt-2 text-xs text-slate-600">
+                  We&apos;re setting things up for you...
+                </p>
+                <Progress value={progress} max={100} />
+              </div>
+            ),
+            id: INITIALIZATION_TOAST_ID,
+          });
           setProgress((prev) => Math.min(prev + 5, 90));
         }
       } catch (error) {
         console.error("Error checking initialization status:", error);
         setAppState("error");
+        toast.error("Error initializing MCP Services", {
+          id: INITIALIZATION_TOAST_ID,
+          description: "Please check your MCP configuration and try again.",
+        });
       }
     }, 500);
 
@@ -63,7 +85,7 @@ const InitMCPOverlay: React.FC<LoadingOverlayProps> = ({
       unlisten.then((fn) => fn());
       clearInterval(interval);
     };
-  }, []);
+  }, [progress]);
 
   // Check if user has consented when app is ready
   useEffect(() => {
@@ -82,48 +104,12 @@ const InitMCPOverlay: React.FC<LoadingOverlayProps> = ({
     setUserConsented(true);
   };
 
-  if (appState === "pending") {
+  if (!userConsented) {
     return (
-      <div className="flex h-full w-full items-center justify-center">
-        <div className="rounded-lg bg-white p-6 text-center">
-          <h2 className="text-xl font-semibold text-gray-800">
-            Initializing MCP Services
-          </h2>
-          <p className="mt-2 text-sm text-gray-600">
-            We&apos;re setting things up for you. Please hold on...
-          </p>
-          <div className="mt-4 h-2 w-full rounded-full bg-gray-200">
-            <Progress value={progress} max={100} />
-          </div>
-          <p className="mt-2 text-sm text-gray-500">{progress}% completed</p>
-        </div>
-      </div>
+      <TermsConsentDialog open={showTerms} onAccept={handleTermsAccepted} />
     );
   }
-
-  if (appState === "error") {
-    return (
-      <div className="flex h-full w-full items-center justify-center bg-red-100">
-        <div className="rounded-lg bg-white p-6 text-center shadow-md">
-          <h2 className="text-2xl font-semibold text-red-600">
-            Error Initializing MCP Services
-          </h2>
-          <p className="mt-2 text-gray-700">
-            Please check your MCP configuration and try again.
-          </p>
-        </div>
-      </div>
-    );
-  }
-
-  if (appState === "ready") {
-    if (!userConsented) {
-      return <TermsConsentDialog open={showTerms} onAccept={handleTermsAccepted} />;
-    }
-    return children;
-  }
-
-  return null;
+  return children;
 };
 
 export default InitMCPOverlay;
