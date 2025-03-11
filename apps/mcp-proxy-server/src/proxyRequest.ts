@@ -49,6 +49,15 @@ export async function proxyRequest<T>(method: string, params: any): Promise<T> {
   
       console.error(`Received response for: ${method}`);
       console.error(`Response data: ${JSON.stringify(data.result).substring(0, 100)}...`);
+      if (!data.result.content) {
+        console.warn(`No content field in response for: ${method}`);
+        try {
+          data.result.content = JSON.stringify(data.result);
+        } catch (error) {
+          console.error(`Error stringifying response for: ${method}`, error);
+          data.result.content = 'Error stringifying response';
+        }
+      }
       return data.result;
     } catch (error) {
       console.error(`Error proxying request: ${error}`);

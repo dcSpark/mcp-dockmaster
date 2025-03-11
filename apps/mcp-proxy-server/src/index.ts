@@ -60,36 +60,40 @@ server.setRequestHandler(ListToolsRequestSchema, async () => {
   debugLog('ListToolsRequestSchema handler called');
   try {
     const result = await proxyRequest<Tools>('tools/list', {});
+    const isValidToolName = (name: string) => /^[a-zA-Z0-9_-]+$/.test(name);
+    let tools: any[] = [];
     
     // Ensure the result has the expected format
     if (result && typeof result === 'object') {
-      // If the result already has a tools array, return it directly
+      // If the result already has a tools array, use it directly
       if (Array.isArray(result.tools)) {
-        injectInternalTools(result);
-        result.tools.forEach((tool: any) => {
-          // This is temporal patch. 
-          // Claude desktop breaks with "invalid names"
-          tool.name = tool.name.replace(/[^a-zA-Z0-9_-]/g, '_');
-          tool.name = tool.name.substring(0, 64);
-        });
         debugLog('Received tools list with correct format');
-        return result as any;
-      }
-      
-      // If the result is an array, wrap it in a tools object
-      if (Array.isArray(result)) {
+        tools = result.tools;
+      } else if (Array.isArray(result)) {
         debugLog('Received tools as array, converting to expected format');
-        injectInternalTools({ tools: result });
-        return { tools: result } as any;
+        tools = result;
+      } else {
+        debugLog('Unexpected tools list format, returning empty list', JSON.stringify(result));
+        return { tools: [] };
       }
+
+      // Filter out tools with invalid names
+      tools = tools.filter((tool: any) => {
+        const isValid = isValidToolName(tool.name);
+        if (!isValid) console.error(`Invalid tool name: ${tool.name}`);
+        return isValid;
+      });
+
+      injectInternalTools({ tools });
+      return { tools };
     }
-    
+
     // If we got here, the format is unexpected
     debugLog('Unexpected tools list format, returning empty list');
-    return { tools: [] } as any;
+    return { tools: [] };
   } catch (error) {
     console.error('Error fetching tools list:', error);
-    return { tools: [] } as any;
+    return { tools: [] };
   }
 });
 
