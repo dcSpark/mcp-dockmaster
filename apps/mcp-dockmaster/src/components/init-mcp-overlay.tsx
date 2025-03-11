@@ -37,6 +37,7 @@ const InitMCPOverlay: React.FC<LoadingOverlayProps> = ({
       toast.success("MCP services initialized!", {
         id: INITIALIZATION_TOAST_ID,
         description: null,
+        closeButton: true,
       });
     });
 
@@ -55,6 +56,7 @@ const InitMCPOverlay: React.FC<LoadingOverlayProps> = ({
           toast.success("MCP services initialized!", {
             id: INITIALIZATION_TOAST_ID,
             description: null,
+            closeButton: true,
           });
           clearInterval(interval);
         } else {
