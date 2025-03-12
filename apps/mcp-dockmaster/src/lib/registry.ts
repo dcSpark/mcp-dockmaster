@@ -65,7 +65,21 @@ export const getAvailableServers = async (force: boolean = false): Promise<Regis
 const wait = (ms: number) => new Promise(resolve => setTimeout(resolve, ms));
 
 export const getCategories = async (): Promise<[string, number][]> => {
-  while (!serversCache) await wait(50);
+  // Wait for serversCache to be populated, but with a timeout
+  let attempts = 0;
+  const maxAttempts = 100; // 5 seconds max wait (100 * 50ms)
+  
+  while (!serversCache && attempts < maxAttempts) {
+    await wait(50);
+    attempts++;
+  }
+  
+  // Return empty array if cache is still not available after timeout
+  if (!serversCache) {
+    console.warn('getCategories timeout: serversCache not available');
+    return [];
+  }
+  
   return serversCache.categories;
 };
 

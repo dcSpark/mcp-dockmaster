@@ -195,6 +195,8 @@ const Registry: React.FC = () => {
       setCategories(allCategories);
     } catch (error) {
       console.error("Failed to load categories:", error);
+      // Set empty categories to avoid blocking the UI
+      setCategories([]);
     }
   };
 
@@ -796,45 +798,50 @@ const Registry: React.FC = () => {
           </div>
         )}
 
-        <div className={`flex flex-wrap items-center gap-2 pb-2`}>
-          <div
-            className={`flex flex-wrap gap-2 ${showAllCategories ? "max-h-[300px] overflow-y-auto" : ""}`}
-          >
-            {visibleCategories.map(([category, count]) => (
-              <Badge
-                key={category}
-                variant={selectedCategory === category ? "default" : "outline"}
-                className="cursor-pointer whitespace-nowrap"
-                onClick={() =>
-                  setSelectedCategory(
-                    selectedCategory === category ? null : category,
-                  )
-                }
-              >
-                {category} {count > 1 ? `(${count})` : ""}
-              </Badge>
-            ))}
-          </div>
-          {categories.length > 5 && (
-            <Button
-              variant="ghost"
-              size="sm"
-              className="whitespace-nowrap"
-              onClick={() => setShowAllCategories(!showAllCategories)}
+        {!loading && (
+          <div className={`flex flex-wrap items-center gap-2 pb-2`}>
+            <div
+              className={`flex flex-wrap gap-2 ${showAllCategories ? "max-h-[300px] overflow-y-auto" : ""}`}
             >
-              {showAllCategories ? "Show Less" : "Show All Categories"}
-              {showAllCategories ? (
-                <ChevronLeft className="ml-1 h-4 w-4" />
-              ) : (
-                <ChevronRight className="ml-1 h-4 w-4" />
-              )}
-            </Button>
-          )}
-        </div>
+              {visibleCategories.map(([category, count]) => (
+                <Badge
+                  key={category}
+                  variant={selectedCategory === category ? "default" : "outline"}
+                  className="cursor-pointer whitespace-nowrap"
+                  onClick={() =>
+                    setSelectedCategory(
+                      selectedCategory === category ? null : category,
+                    )
+                  }
+                >
+                  {category} {count > 1 ? `(${count})` : ""}
+                </Badge>
+              ))}
+            </div>
+            {categories.length > 5 && (
+              <Button
+                variant="ghost"
+                size="sm"
+                className="whitespace-nowrap"
+                onClick={() => setShowAllCategories(!showAllCategories)}
+              >
+                {showAllCategories ? "Show Less" : "Show All Categories"}
+                {showAllCategories ? (
+                  <ChevronLeft className="ml-1 h-4 w-4" />
+                ) : (
+                  <ChevronRight className="ml-1 h-4 w-4" />
+                )}
+              </Button>
+            )}
+          </div>
+        )}
       </div>
 
       {loading ? (
         <div className="flex flex-col items-center justify-center gap-3">
+          <div className="text-center mb-4 text-muted-foreground">
+            <p>Loading server registry...</p>
+          </div>
           {Array.from({ length: 3 }).map((_, index) => (
             <Skeleton key={index} className="bg-muted h-40 w-full rounded-md" />
           ))}
