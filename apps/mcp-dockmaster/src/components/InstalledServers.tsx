@@ -81,16 +81,29 @@ const InstalledServers: React.FC = () => {
     };
   }, []);
 
-  // Add auto-refresh feature that runs every 2 seconds
+  // Add auto-refresh feature that runs every 2 seconds but only when server status and enabled state don't match
   useEffect(() => {
-    // Set up interval to refresh data every 2 seconds
-    const intervalId = setInterval(loadData, 2000);
+    // Helper function to check if any server needs refresh based on status/enabled mismatch
+    const checkServersNeedRefresh = () => {
+      // Check if any server has a mismatch between process_running and enabled state
+      const needsRefresh = servers.some(server => 
+        (server.process_running && !server.enabled) || // Running but should be stopped
+        (!server.process_running && server.enabled)    // Stopped but should be running
+      );
+      
+      if (needsRefresh) {
+        loadData();
+      }
+    };
+    
+    // Set up interval to check for refresh every 2 seconds
+    const intervalId = setInterval(checkServersNeedRefresh, 2000);
     
     // Clean up interval on component unmount
     return () => {
       clearInterval(intervalId);
     };
-  }, []);
+  }, [servers]);
 
   // Effect to handle expanded tool changes
   useEffect(() => {
