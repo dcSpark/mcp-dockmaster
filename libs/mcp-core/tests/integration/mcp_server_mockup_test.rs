@@ -6,6 +6,7 @@ mod tests {
 
     use mcp_core::{
         core::{mcp_core::MCPCore, mcp_core_proxy_ext::McpCoreProxyExt},
+        event::LoggingEventEmitter,
         init_logging,
         models::types::ToolExecutionRequest,
         types::{ServerConfiguration, ServerRegistrationRequest},
@@ -62,7 +63,10 @@ mod tests {
         );
 
         // Register tool
-        let response = mcp_core.register_server(registration_request).await?;
+        let logging_emitter = LoggingEventEmitter;
+        let response = mcp_core
+            .register_server(logging_emitter, registration_request)
+            .await?;
         let tool_id = response.tool_id.ok_or("No tool ID returned")?;
 
         eprintln!("Received tool_id from registration: {}", tool_id);

@@ -1,10 +1,10 @@
 use mcp_core::models::event::EventEmitter;
 use serde_json::Value;
 use tauri::AppHandle;
-use tauri::Manager;
+use tauri::Emitter;
 
 /// TauriEventEmitter: Implementation of EventEmitter for Tauri
-/// 
+///
 /// This struct wraps a Tauri AppHandle and implements the EventEmitter trait
 /// to emit events to the frontend using Tauri's event system.
 #[derive(Clone)]
