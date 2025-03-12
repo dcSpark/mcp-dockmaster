@@ -989,7 +989,7 @@ impl McpCoreProxyExt for MCPCore {
         };
 
         // Register the server
-        let logging_emitter = crate::models::event::LoggingEventEmitter::default();
+        let logging_emitter = crate::models::event::LoggingEventEmitter;
         self.register_server(logging_emitter, request).await
     }
 
@@ -1091,7 +1091,7 @@ impl McpCoreProxyExt for MCPCore {
         };
 
         // Register the server
-        let logging_emitter = crate::models::event::LoggingEventEmitter::default();
+        let logging_emitter = crate::models::event::LoggingEventEmitter;
         self.register_server(logging_emitter, request).await
     }
 }

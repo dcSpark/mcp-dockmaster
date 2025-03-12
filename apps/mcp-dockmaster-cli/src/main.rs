@@ -211,7 +211,8 @@ async fn main() {
             info!("Restarting server: {}", server_id);
 
             // Restart the server using the direct function
-            match mcp_core.restart_server_command(server_id.clone()).await {
+            let logging_emitter = mcp_core::models::event::LoggingEventEmitter;
+            match mcp_core.restart_server_command(logging_emitter, server_id.clone()).await {
                 Ok(_) => {
                     println!("Server restarted successfully");
                 }
