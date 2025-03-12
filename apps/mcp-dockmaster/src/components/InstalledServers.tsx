@@ -81,6 +81,17 @@ const InstalledServers: React.FC = () => {
     };
   }, []);
 
+  // Add auto-refresh feature that runs every 2 seconds
+  useEffect(() => {
+    // Set up interval to refresh data every 2 seconds
+    const intervalId = setInterval(loadData, 2000);
+    
+    // Clean up interval on component unmount
+    return () => {
+      clearInterval(intervalId);
+    };
+  }, []);
+
   // Effect to handle expanded tool changes
   useEffect(() => {
     if (expandedServerId) {
