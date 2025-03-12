@@ -28,9 +28,9 @@ pub struct ServerStatusChangeEvent<'a> {
     pub status: &'a ServerStatus,
 }
 
-impl<'a> ServerStatusChangeEvent<'a> {
-    pub fn new(server_id: &'a str, status: &'a ServerStatus) -> Self {
-        Self { server_id, status }
+impl ServerStatusChangeEvent<'_> {
+    pub fn new<'a>(server_id: &'a str, status: &'a ServerStatus) -> ServerStatusChangeEvent<'a> {
+        ServerStatusChangeEvent { server_id, status }
     }
 
     pub fn to_payload(&self) -> Value {
@@ -41,7 +41,7 @@ impl<'a> ServerStatusChangeEvent<'a> {
     }
 }
 
-impl<'a> fmt::Display for ServerStatusChangeEvent<'a> {
+impl fmt::Display for ServerStatusChangeEvent<'_> {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         write!(f, "ServerStatusChange(server_id: {}, status: {})", 
             self.server_id, self.status)

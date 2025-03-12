@@ -275,7 +275,7 @@ async fn handle_register_tool(
             };
 
             println!("[POST] handle_register_tool: tool {:?}", tool);
-            let event_emitter = HttpEventEmitter::default();
+            let event_emitter = HttpEventEmitter;
             let r = mcp_core.register_server(event_emitter, tool).await;
             println!("[INSTALLATION] handle_register_tool: r {:?}", r);
             Ok(ServerRegistrationResponse {
@@ -305,7 +305,7 @@ async fn handle_register_tool(
             }
             let tool = tool.unwrap();
             println!("Building tool from registry: {:?}", tool);
-            let event_emitter = HttpEventEmitter::default();
+            let event_emitter = HttpEventEmitter;
             let r = mcp_core
                 .register_server(
                     event_emitter,
@@ -599,7 +599,7 @@ async fn handle_get_server_config(mcp_core: MCPCore, params: Value) -> Result<Va
             }
 
             // After successful config update, restart the tool
-           let event_emitter = HttpEventEmitter::default();
+            let event_emitter = HttpEventEmitter;
             match mcp_core
                 .restart_server_command(event_emitter, config.tool_id.to_string())
                 .await

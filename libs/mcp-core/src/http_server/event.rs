@@ -6,7 +6,7 @@ use serde_json::Value;
 /// 
 /// This implementation logs events but doesn't actually emit them
 /// since the HTTP server doesn't have a UI to update.
-#[derive(Clone, Default)]
+#[derive(Clone)]
 pub struct HttpEventEmitter;
 
 impl EventEmitter for HttpEventEmitter {
