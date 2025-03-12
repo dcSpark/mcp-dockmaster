@@ -1,6 +1,7 @@
 use mcp_core::models::event::EventEmitter;
 use serde_json::Value;
 use tauri::AppHandle;
+use tauri::Manager;
 
 /// TauriEventEmitter: Implementation of EventEmitter for Tauri
 /// 
