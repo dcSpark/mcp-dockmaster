@@ -11,6 +11,7 @@ use tokio::sync::Mutex;
 
 use crate::core::mcp_core::MCPCore;
 use crate::core::mcp_core_proxy_ext::McpCoreProxyExt;
+use crate::http_server::event::HttpEventEmitter;
 use crate::models::types::{
     Distribution, ErrorResponse, InputSchema, RegistryToolsResponse, ServerConfiguration,
     ServerRegistrationRequest, ServerRegistrationResponse, ServerToolInfo, ServerToolsResponse,
@@ -274,7 +275,8 @@ async fn handle_register_tool(
             };
 
             println!("[POST] handle_register_tool: tool {:?}", tool);
-            let r = mcp_core.register_server(tool).await;
+            let event_emitter = HttpEventEmitter::default();
+            let r = mcp_core.register_server(event_emitter, tool).await;
             println!("[INSTALLATION] handle_register_tool: r {:?}", r);
             Ok(ServerRegistrationResponse {
                 success: true,
@@ -303,15 +305,19 @@ async fn handle_register_tool(
             }
             let tool = tool.unwrap();
             println!("Building tool from registry: {:?}", tool);
+            let event_emitter = HttpEventEmitter::default();
             let r = mcp_core
-                .register_server(ServerRegistrationRequest {
-                    server_id: tool_id.clone(),
-                    server_name: tool.name.clone(),
-                    description: tool.description.clone(),
-                    tools_type: tool.runtime.clone(),
-                    configuration: Some(tool.config.clone()),
-                    distribution: Some(tool.distribution.clone()),
-                })
+                .register_server(
+                    event_emitter,
+                    ServerRegistrationRequest {
+                        server_id: tool_id.clone(),
+                        server_name: tool.name.clone(),
+                        description: tool.description.clone(),
+                        tools_type: tool.runtime.clone(),
+                        configuration: Some(tool.config.clone()),
+                        distribution: Some(tool.distribution.clone()),
+                    }
+                )
                 .await;
             println!("[INSTALLATION] handle_register_tool: r {:?}", r);
             Ok(ServerRegistrationResponse {
@@ -535,7 +541,7 @@ async fn handle_import_server_from_url(mcp_core: MCPCore, params: Value) -> Resu
     match params.get("url").and_then(|v| v.as_str()) {
         Some(url) => {
             info!("Importing server from URL: {}", url);
-
+            
             match mcp_core.import_server_from_url(url.to_string()).await {
                 Ok(response) => {
                     if response.success {
@@ -593,8 +599,9 @@ async fn handle_get_server_config(mcp_core: MCPCore, params: Value) -> Result<Va
             }
 
             // After successful config update, restart the tool
+           let event_emitter = HttpEventEmitter::default();
             match mcp_core
-                .restart_server_command(config.tool_id.to_string())
+                .restart_server_command(event_emitter, config.tool_id.to_string())
                 .await
             {
                 Ok(restart_response) => {

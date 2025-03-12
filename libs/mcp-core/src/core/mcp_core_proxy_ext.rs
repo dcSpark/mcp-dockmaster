@@ -1,6 +1,7 @@
 use crate::mcp_protocol::{discover_server_tools, execute_server_tool};
 use crate::mcp_state::mcp_state::McpStateProcessMonitor;
 use crate::mcp_state::mcp_state_process_utils::{kill_process, spawn_process};
+use crate::models::event::{EventEmitter, emit_server_status_change};
 use crate::models::types::{
     DiscoverServerToolsRequest, Distribution, RuntimeServer, ServerConfigUpdateRequest,
     ServerConfiguration, ServerDefinition, ServerEnvironment, ServerId, ServerRegistrationRequest,
@@ -26,33 +27,41 @@ use super::mcp_core::MCPCore;
 
 #[async_trait]
 pub trait McpCoreProxyExt {
-    async fn register_server(
+    async fn register_server<E: EventEmitter + Send + Sync>(
         &self,
+        event_emitter: E,
         tool: ServerRegistrationRequest,
     ) -> Result<ServerRegistrationResponse, String>;
     async fn list_servers(&self) -> Result<Vec<RuntimeServer>, String>;
     async fn list_all_server_tools(&self) -> Result<Vec<ServerToolInfo>, String>;
-    async fn list_server_tools(
+    async fn list_server_tools<E: EventEmitter + Send + Sync>(
         &self,
+        event_emitter: E,
         request: DiscoverServerToolsRequest,
     ) -> Result<Vec<ServerToolInfo>, String>;
     async fn execute_proxy_tool(
         &self,
         request: ToolExecutionRequest,
     ) -> Result<ToolExecutionResponse, String>;
-    async fn update_server_status(
+    async fn update_server_status<E: EventEmitter + Send + Sync>(
         &self,
+        event_emitter: E,
         request: ServerUpdateRequest,
     ) -> Result<ToolUpdateResponse, String>;
     async fn update_server_config(
         &self,
         request: ServerConfigUpdateRequest,
     ) -> Result<ToolConfigUpdateResponse, String>;
-    async fn uninstall_server(
+    async fn uninstall_server<E: EventEmitter + Send + Sync>(
         &self,
+        event_emitter: E,
         request: ToolUninstallRequest,
     ) -> Result<ServerUninstallResponse, String>;
-    async fn restart_server_command(&self, tool_id: String) -> Result<ToolUpdateResponse, String>;
+    async fn restart_server_command<E: EventEmitter + Send + Sync>(
+        &self,
+        event_emitter: E,
+        tool_id: String
+    ) -> Result<ToolUpdateResponse, String>;
     async fn init_mcp_server(&self) -> Result<()>;
     async fn kill_all_processes(&self) -> Result<()>;
     /// Import a server from a GitHub repository URL
@@ -79,8 +88,9 @@ pub trait McpCoreProxyExt {
 #[async_trait]
 impl McpCoreProxyExt for MCPCore {
     /// Register a new tool with the MCP server
-    async fn register_server(
+    async fn register_server<E: EventEmitter + Send + Sync>(
         &self,
+        event_emitter: E,
         request: ServerRegistrationRequest,
     ) -> Result<ServerRegistrationResponse, String> {
         // Log configuration details if present
@@ -204,14 +214,23 @@ impl McpCoreProxyExt for MCPCore {
                                 (child_opt, ServerStatus::Running)
                             );
                             info!("Updated status to Running for server: {}", server_id);
+                            
+                            // Emit status change event
+                            let _ = emit_server_status_change(&event_emitter, &server_id, &ServerStatus::Running);
                         }
                     }
                     Ok(Err(e)) => {
                         error!("Error discovering tools from server {}: {}", server_id, e);
+                        
+                        // Emit error status change event
+                        let _ = emit_server_status_change(&event_emitter, &server_id, &ServerStatus::Error(e.clone()));
                     }
                     Err(_) => {
                         error!("Timeout while discovering tools from server {}", server_id);
                         info!("Added default tool for server {} after timeout", server_id);
+                        
+                        // Emit timeout error status change event
+                        let _ = emit_server_status_change(&event_emitter, &server_id, &ServerStatus::Error("Timeout while discovering tools".to_string()));
                     }
                 }
             }
@@ -280,8 +299,9 @@ impl McpCoreProxyExt for MCPCore {
     }
 
     /// Discover tools from a specific MCP server
-    async fn list_server_tools(
+    async fn list_server_tools<E: EventEmitter + Send + Sync>(
         &self,
+        event_emitter: E,
         request: DiscoverServerToolsRequest,
     ) -> Result<Vec<ServerToolInfo>, String> {
         let mcp_state = self.mcp_state.read().await;
@@ -324,6 +344,14 @@ impl McpCoreProxyExt for MCPCore {
                     (child_opt, ServerStatus::Running)
                 );
                 info!("Updated status to Running for server: {}", request.server_id);
+                
+                // Emit status change event
+                let _ = emit_server_status_change(&event_emitter, &request.server_id, &ServerStatus::Running);
+            }
+        } else if result.is_err() {
+            // Emit error status change event
+            if let Err(err) = &result {
+                let _ = emit_server_status_change(&event_emitter, &request.server_id, &ServerStatus::Error(err.clone()));
             }
         }
 
@@ -401,8 +429,9 @@ impl McpCoreProxyExt for MCPCore {
     }
 
     /// Update a tool's status (enabled/disabled)
-    async fn update_server_status(
+    async fn update_server_status<E: EventEmitter + Send + Sync>(
         &self,
+        event_emitter: E,
         request: ServerUpdateRequest,
     ) -> Result<ToolUpdateResponse, String> {
         info!(
@@ -480,6 +509,9 @@ impl McpCoreProxyExt for MCPCore {
                                         (child_opt, ServerStatus::Running)
                                     );
                                     info!("Updated status to Running for server: {}", request.server_id);
+                                    
+                                    // Emit status change event
+                                    let _ = emit_server_status_change(&event_emitter, &request.server_id, &ServerStatus::Running);
                                 }
                             }
                             Err(e) => {
@@ -487,6 +519,9 @@ impl McpCoreProxyExt for MCPCore {
                                     "Failed to discover tools for server {}: {}",
                                     request.server_id, e
                                 );
+                                
+                                // Emit error status change event
+                                let _ = emit_server_status_change(&event_emitter, &request.server_id, &ServerStatus::Error(e.clone()));
                             }
                         }
                     }
@@ -498,11 +533,17 @@ impl McpCoreProxyExt for MCPCore {
                 if let Some((Some(process), _status)) = process_manager.processes.get_mut(&request.server_id) {
                     // Kill the process
                     if let Err(e) = kill_process(process).await {
+                        // Emit error status change event
+                        let _ = emit_server_status_change(&event_emitter, &request.server_id, &ServerStatus::Error(e.clone()));
                         return Ok(ToolUpdateResponse {
                             success: false,
                             message: format!("Failed to kill process: {}", e),
                         });
                     }
+                    
+                    // Emit stopped status change event
+                    let _ = emit_server_status_change(&event_emitter, &request.server_id, &ServerStatus::Stopped);
+                    
                     // Remove process and IOs from process manager
                     process_manager.processes.remove(&request.server_id);
                     process_manager.process_ios.remove(&request.server_id);
@@ -510,6 +551,9 @@ impl McpCoreProxyExt for MCPCore {
                     // Remove tools for this server
                     let mut server_tools = mcp_state.server_tools.write().await;
                     server_tools.remove(&request.server_id);
+                } else {
+                    // Even if there's no process to kill, we should still emit the stopped status
+                    let _ = emit_server_status_change(&event_emitter, &request.server_id, &ServerStatus::Stopped);
                 }
                 Ok(())
             }
@@ -626,10 +670,13 @@ impl McpCoreProxyExt for MCPCore {
     }
 
     /// Uninstall a registered tool
-    async fn uninstall_server(
+    async fn uninstall_server<E: EventEmitter + Send + Sync>(
         &self,
+        event_emitter: E,
         request: ToolUninstallRequest,
     ) -> Result<ServerUninstallResponse, String> {
+        // Emit status change event for uninstalling
+        let _ = emit_server_status_change(&event_emitter, &request.server_id, &ServerStatus::Stopped);
         let mcp_state = self.mcp_state.read().await;
         let registry = mcp_state.tool_registry.write().await;
 
@@ -645,11 +692,16 @@ impl McpCoreProxyExt for MCPCore {
         let mut process_manager = mcp_state.process_manager.write().await;
         if let Some((Some(process), _status)) = process_manager.processes.get_mut(&request.server_id) {
             if let Err(e) = kill_process(process).await {
+                // Emit error status change event
+                let _ = emit_server_status_change(&event_emitter, &request.server_id, &ServerStatus::Error(e.clone()));
                 return Ok(ServerUninstallResponse {
                     success: false,
                     message: format!("Failed to kill process: {}", e),
                 });
             }
+            
+            // Emit stopped status change event
+            let _ = emit_server_status_change(&event_emitter, &request.server_id, &ServerStatus::Stopped);
         }
 
         // Remove the process and IOs from the process manager
@@ -676,8 +728,9 @@ impl McpCoreProxyExt for MCPCore {
     }
 
     /// Restart a server by its ID
-    async fn restart_server_command(
+    async fn restart_server_command<E: EventEmitter + Send + Sync>(
         &self,
+        event_emitter: E,
         server_id: String,
     ) -> Result<ToolUpdateResponse, String> {
         let mcp_state = self.mcp_state.read().await;
@@ -699,12 +752,17 @@ impl McpCoreProxyExt for MCPCore {
 
         info!("Tool '{}' found, attempting to restart", server_id);
 
+        // Emit status change event for starting
+        let _ = emit_server_status_change(&event_emitter, &server_id, &ServerStatus::Starting);
+        
         // Restart the tool using MCPState
         let restart_result = mcp_state.restart_server(&server_id).await;
 
         match restart_result {
             Ok(_) => {
                 info!("Successfully restarted tool: {}", server_id);
+                // Emit status change event for successful restart
+                let _ = emit_server_status_change(&event_emitter, &server_id, &ServerStatus::Running);
                 Ok(ToolUpdateResponse {
                     success: true,
                     message: format!("Tool '{}' restarted successfully", server_id),
@@ -712,6 +770,8 @@ impl McpCoreProxyExt for MCPCore {
             }
             Err(e) => {
                 error!("Failed to restart tool {}: {}", server_id, e);
+                // Emit error status change event
+                let _ = emit_server_status_change(&event_emitter, &server_id, &ServerStatus::Error(e.clone()));
                 Ok(ToolUpdateResponse {
                     success: false,
                     message: format!("Failed to restart tool: {}", e),
@@ -929,7 +989,8 @@ impl McpCoreProxyExt for MCPCore {
         };
 
         // Register the server
-        self.register_server(request).await
+        let logging_emitter = crate::models::event::LoggingEventEmitter::default();
+        self.register_server(logging_emitter, request).await
     }
 
     /// Process a Python project from pyproject.toml content
@@ -1030,6 +1091,7 @@ impl McpCoreProxyExt for MCPCore {
         };
 
         // Register the server
-        self.register_server(request).await
+        let logging_emitter = crate::models::event::LoggingEventEmitter::default();
+        self.register_server(logging_emitter, request).await
     }
 }
