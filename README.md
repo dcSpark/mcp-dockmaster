@@ -2,6 +2,12 @@
 
 This is a monorepo for the MCP Dockmaster project, managed with NX. A monorepo is a single repository that holds multiple projects, which can be related or independent. NX is a set of extensible dev tools for monorepos, which helps in managing and scaling the projects efficiently.
 
+## About
+
+MCP Dockmaster allows you to easily manage MCP servers. Available for Mac, Windows and Linux as a UI, CLI and a lib.
+
+GitHub: [http://github.com/dcSpark/mcp-dockmaster/](http://github.com/dcSpark/mcp-dockmaster/)
+
 ## Structure
 
 - `apps/mcp-dockmaster`: The main Tauri application, which is a desktop application built using Tauri, a framework for building tiny, fast binaries for all major desktop platforms.
@@ -99,4 +105,4 @@ This command optimizes the build process by only running tasks for projects that
 ## Learn More
 
 - [NX Documentation](https://nx.dev) 
-The official NX documentation provides comprehensive guides and API references to help you get the most out of NX. 
+The official NX documentation provides comprehensive guides and API references to help you get the most out of NX.  
