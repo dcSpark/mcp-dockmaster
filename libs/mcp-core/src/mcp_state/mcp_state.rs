@@ -1,17 +1,27 @@
-use crate::mcp_protocol::{discover_server_tools, execute_server_tool};
-use crate::mcp_state::mcp_state_process_utils::{kill_process, spawn_process};
-use crate::models::types::{ServerStatus, ServerToolInfo};
+use crate::models::types::ServerToolInfo;
 use crate::registry::server_registry::ServerRegistry;
 use crate::MCPError;
-use async_trait::async_trait;
-use log::{error, info, warn};
+use log::{error, info};
+use mcp_sdk_client::transport::stdio::StdioTransport;
+use mcp_sdk_client::transport::stdio::StdioTransportHandle;
+use mcp_sdk_client::{
+    ClientCapabilities, ClientInfo, McpClient, McpClientTrait, McpService, Transport,
+};
+use mcp_sdk_core::Tool;
 use serde_json::{json, Value};
 use std::collections::HashMap;
 use std::sync::Arc;
 use std::time::Duration;
 use tokio::sync::RwLock;
 
-use super::process_manager::ProcessManager;
+/// Type alias for a transport that uses StdioTransportHandle
+pub type StdioTransportType = Arc<dyn Transport<Handle = StdioTransportHandle> + Send + Sync>;
+
+/// Type alias for the transport manager
+pub type TransportManagerType = Arc<RwLock<HashMap<String, StdioTransportType>>>;
+
+/// Type alias for McpClient trait objects
+pub type McpClientType = Arc<dyn McpClientTrait + Send + Sync>;
 
 /// MCPState: the main service layer
 ///
@@ -21,34 +31,42 @@ use super::process_manager::ProcessManager;
 #[derive(Clone)]
 pub struct MCPState {
     pub tool_registry: Arc<RwLock<ServerRegistry>>,
-    pub process_manager: Arc<RwLock<ProcessManager>>,
     pub server_tools: Arc<RwLock<HashMap<String, Vec<ServerToolInfo>>>>,
+    pub clients: Arc<RwLock<HashMap<String, McpClientType>>>,
+    pub transport_manager: TransportManagerType,
 }
 
 impl MCPState {
     pub fn new(
         tool_registry: Arc<RwLock<ServerRegistry>>,
-        process_manager: Arc<RwLock<ProcessManager>>,
         server_tools: Arc<RwLock<HashMap<String, Vec<ServerToolInfo>>>>,
+        clients: Arc<RwLock<HashMap<String, McpClientType>>>,
+        transport_manager: TransportManagerType,
     ) -> Self {
         Self {
             tool_registry,
-            process_manager,
             server_tools,
+            clients,
+            transport_manager,
         }
     }
 
     /// Kill all running processes
     pub async fn kill_all_processes(&self) {
-        let mut process_manager = self.process_manager.write().await;
-        for (tool_id, process_opt) in process_manager.processes.iter_mut() {
-            if let (Some(process), _) = process_opt {
-                if let Err(e) = process.kill().await {
-                    error!("Failed to kill process for tool {}: {}", tool_id, e);
-                } else {
-                    info!("Killed process for tool {}", tool_id);
-                }
-            }
+        for transport in self.transport_manager.read().await.values() {
+            let _ = transport.close().await;
+        }
+    }
+
+    /// Kill a process by its ID
+    pub async fn kill_process(&self, server_id: &str) {
+        let transport = self.transport_manager.read().await.get(server_id).cloned();
+        if let Some(transport) = transport {
+            let _ = transport.close().await;
+            self.transport_manager.write().await.remove(server_id);
+            self.clients.write().await.remove(server_id);
+            self.server_tools.write().await.remove(server_id);
+            let _ = self.tool_registry.write().await.delete_server(server_id);
         }
     }
 
@@ -59,13 +77,25 @@ impl MCPState {
         tool_id: &str,
         parameters: Value,
     ) -> Result<Value, MCPError> {
-        let mut process_manager = self.process_manager.write().await;
-        let (stdin, stdout) = process_manager
-            .process_ios
-            .get_mut(server_id)
-            .ok_or_else(|| MCPError::ServerNotFound(server_id.to_string()))?;
+        let client = self.clients.read().await.get(server_id).cloned();
+        if let Some(client) = client {
+            info!("Successfully got client for server: {}", server_id);
+            let result = client
+                .call_tool(tool_id, parameters)
+                .await
+                .map_err(|e| MCPError::ToolExecutionError(e.to_string()))?;
 
-        execute_server_tool(server_id, tool_id, parameters, stdin, stdout).await
+            // Convert the result to a Value
+            let content_value = serde_json::to_value(result.content)
+                .map_err(|e| MCPError::SerializationError(e.to_string()))?;
+
+            Ok(content_value)
+        } else {
+            Err(MCPError::ServerNotFound(format!(
+                "No client found for server: {}",
+                server_id
+            )))
+        }
     }
 
     /// Restart a server by its ID
@@ -84,272 +114,158 @@ impl MCPState {
             return Err(format!("Missing tools_type for server {}", server_id));
         }
 
-        // Check if the process is already running
-        let process_running = {
-            let process_manager = self.process_manager.read().await;
-            process_manager
-                .processes
-                .get(server_id)
-                .is_some_and(|(p, status)| matches!(status, ServerStatus::Running) && p.is_some())
-        };
-
-        if process_running {
-            info!(
-                "Server {} is already running, killing process before restart",
-                server_id
-            );
-
-            // Get the process and kill it
-            {
-                let mut process_manager = self.process_manager.write().await;
-                if let Some((Some(process), _)) = process_manager.processes.get_mut(server_id) {
-                    if let Err(e) = kill_process(process).await {
-                        error!("Failed to kill process for server {}: {}", server_id, e);
-                        return Err(format!("Failed to kill process: {}", e));
-                    }
-                    info!("Successfully killed process for server {}", server_id);
-                }
-
-                // Remove the process from the registry and set status to Stopped
-                process_manager
-                    .processes
-                    .insert(server_id.to_string(), (None, ServerStatus::Stopped));
-
-                // Remove the process IOs
-                process_manager.process_ios.remove(server_id);
-            }
-        }
-
-        // Check if the tool is enabled
-        if !server_data.enabled {
-            info!("Server {} is disabled, not restarting", server_id);
-            return Ok(());
-        }
-
-        info!(
-            "Server {} is enabled and not running, starting process",
-            server_id
-        );
-
-        // Extract environment variables from the tool configuration
-        let env_vars = if let Some(configuration) = &server_data.configuration {
-            if let Some(env_map) = &configuration.env {
-                info!(
-                    "Extracted {} environment variables for server {}",
-                    env_map.len(),
-                    server_id
-                );
-                // Convert ToolEnvironment -> just the defaults
-                let simple_env_map: HashMap<String, String> = env_map
-                    .iter()
-                    .filter_map(|(k, tool_env)| tool_env.default.clone().map(|v| (k.clone(), v)))
-                    .collect();
-                Some(simple_env_map)
-            } else {
-                info!("No environment variables found for server {}", server_id);
-                None
-            }
+        let client = self.clients.read().await.get(server_id).cloned();
+        if let Some(_client) = client {
+            info!("Successfully got client for server: {}", server_id);
+            Ok(())
         } else {
-            info!("No configuration found for server {}", server_id);
-            None
-        };
+            // Check if the tool is enabled
+            if !server_data.enabled {
+                info!("Server {} is disabled, not restarting", server_id);
+                return Ok(());
+            }
 
-        // Get the configuration from the tool data
-        let config_value = if let Some(configuration) = &server_data.configuration {
-            info!("Using configuration from server data for {}", server_id);
-            json!({
-                "command": configuration.command,
-                "args": configuration.args
-            })
-        } else if !server_data
-            .entry_point
-            .clone()
-            .unwrap_or_default()
-            .is_empty()
-        {
-            info!(
-                "Creating simple configuration with entry_point for {}",
-                server_id
-            );
-            json!({
-                "command": server_data.entry_point
-            })
-        } else {
-            error!("Missing configuration for server {}", server_id);
-            return Err(format!("Missing configuration for server {}", server_id));
-        };
-
-        // Spawn process based on tool type
-        let spawn_result = spawn_process(
-            &config_value,
-            server_id,
-            &server_data.tools_type,
-            env_vars.as_ref(),
-        )
-        .await;
-
-        match spawn_result {
-            Ok((process, stdin, stdout)) => {
-                info!("Successfully spawned process for server: {}", server_id);
-                {
-                    let mut process_manager = self.process_manager.write().await;
-                    process_manager
-                        .processes
-                        .insert(server_id.to_string(), (Some(process), ServerStatus::Starting));
-                    process_manager
-                        .process_ios
-                        .insert(server_id.to_string(), (stdin, stdout));
-                }
-
-                // Wait longer for the server to start
-                {
-                    info!("Waiting for server to start for server: {}", server_id);
-                    let sleep_future = tokio::time::sleep(Duration::from_secs(3));
-                    sleep_future.await;
+            // Extract environment variables from the tool configuration
+            let env_vars = if let Some(configuration) = &server_data.configuration {
+                if let Some(env_map) = &configuration.env {
                     info!(
-                        "Finished waiting for server to start for server: {}",
+                        "Extracted {} environment variables for server {}",
+                        env_map.len(),
                         server_id
                     );
+                    // Convert ToolEnvironment -> just the defaults
+                    let simple_env_map: HashMap<String, String> = env_map
+                        .iter()
+                        .filter_map(|(k, tool_env)| {
+                            tool_env.default.clone().map(|v| (k.clone(), v))
+                        })
+                        .collect();
+                    Some(simple_env_map)
+                } else {
+                    info!("No environment variables found for server {}", server_id);
+                    None
                 }
+            } else {
+                info!("No configuration found for server {}", server_id);
+                None
+            };
 
-                // Try to discover tools from this server
-                match self.discover_server_tools(server_id).await {
-                    Ok(tools) => {
-                        {
-                            let mut server_tools = self.server_tools.write().await;
-                            server_tools.insert(server_id.to_string(), tools.clone());
-                        }
-                        info!(
-                            "Successfully discovered {} tools for {}",
-                            tools.len(),
-                            server_id
-                        );
-                        
-                        // Update the process status to Running after successful tool discovery
-                        {
-                            let mut process_manager = self.process_manager.write().await;
-                            if let Some((child_opt, _)) = process_manager.processes.remove(server_id) {
-                                process_manager.processes.insert(
-                                    server_id.to_string(), 
-                                    (child_opt, ServerStatus::Running)
-                                );
-                                info!("Updated status to Running for server: {}", server_id);
-                            }
-                        }
-                    }
-                    Err(e) => {
-                        error!("Failed to discover tools from server {}: {}", server_id, e);
-                        // Continue even if discovery fails
-                    }
-                }
+            // Get the configuration from the tool data
+            let config_value = if let Some(configuration) = &server_data.configuration {
+                info!("Using configuration from server data for {}", server_id);
+                json!({
+                    "command": configuration.command,
+                    "args": configuration.args
+                })
+            } else if !server_data
+                .entry_point
+                .clone()
+                .unwrap_or_default()
+                .is_empty()
+            {
+                info!(
+                    "Creating simple configuration with entry_point for {}",
+                    server_id
+                );
+                json!({
+                    "command": server_data.entry_point
+                })
+            } else {
+                error!("Missing configuration for server {}", server_id);
+                return Err(format!("Missing configuration for server {}", server_id));
+            };
 
-                Ok(())
+            let transport = StdioTransport::new(
+                config_value["command"].as_str().unwrap().to_string(),
+                config_value["args"]
+                    .as_array()
+                    .unwrap()
+                    .iter()
+                    .map(|v| v.as_str().unwrap().to_string())
+                    .collect(),
+                env_vars.unwrap_or_default(),
+            );
+
+            let transport_handle = match transport.start().await {
+                Ok(handle) => handle,
+                Err(e) => return Err(format!("Failed to start transport: {}", e)),
+            };
+
+            // Create the service with a timeout of 300 seconds
+            let service = McpService::with_timeout(transport_handle, Duration::from_secs(300));
+
+            // Create and initialize the client
+            let mut client = McpClient::new(service);
+
+            let client_info = ClientInfo {
+                name: "mcp-dockmaster".to_string(),
+                version: env!("CARGO_PKG_VERSION").to_string(),
+            };
+
+            if let Err(e) = client
+                .initialize(client_info, ClientCapabilities::default())
+                .await
+            {
+                return Err(format!("Failed to initialize client: {}", e));
             }
-            Err(e) => {
-                error!("Failed to spawn process for server {}: {}", server_id, e);
-                Err(format!("Failed to spawn process: {}", e))
-            }
+
+            self.clients
+                .write()
+                .await
+                .insert(server_id.to_string(), Arc::new(client));
+
+            self.transport_manager
+                .write()
+                .await
+                .insert(server_id.to_string(), Arc::new(transport));
+
+            let _ = self.discover_server_tools(server_id).await;
+
+            info!("Successfully initialized client for server: {}", server_id);
+
+            Ok(())
         }
     }
 
     /// Discover tools from a server
-    pub async fn discover_server_tools(
-        &self,
-        server_id: &str,
-    ) -> Result<Vec<ServerToolInfo>, String> {
-        let mut process_manager = self.process_manager.write().await;
-        let (stdin, stdout) = match process_manager.process_ios.get_mut(server_id) {
-            Some(io) => io,
-            None => return Err(format!("Server {} not found or not running", server_id)),
-        };
-
-        let tools = discover_server_tools(server_id, stdin, stdout).await?;
-
-        // Update the process status to Running after successful tool discovery
-        if let Some((child_opt, _)) = process_manager.processes.remove(server_id) {
-            process_manager.processes.insert(
-                server_id.to_string(), 
-                (child_opt, ServerStatus::Running)
+    pub async fn discover_server_tools(&self, server_id: &str) -> Result<Vec<Tool>, String> {
+        let client = self.clients.read().await.get(server_id).cloned();
+        if let Some(client) = client {
+            info!("Successfully got client for server: {}", server_id);
+            let list_tools = client.list_tools(None).await.map_err(|e| e.to_string())?;
+            let tools = list_tools.tools;
+            info!(
+                "Successfully discovered {} tools for {}",
+                tools.len(),
+                server_id
             );
-            info!("Updated status to Running for server: {}", server_id);
-        }
 
-        // Update the server_tools map with the discovered tools
-        let mut server_tools = self.server_tools.write().await;
-        server_tools.insert(server_id.to_string(), tools.clone());
-
-        // Save the tools to the database
-        let registry = self.tool_registry.read().await;
-        for tool in &tools {
-            if let Err(e) = registry.save_server_tool(tool) {
-                error!("Failed to save server tool to database: {}", e);
-            }
-        }
-
-        Ok(tools)
-    }
-}
-
-#[async_trait]
-pub trait McpStateProcessMonitor {
-    async fn start_process_monitor(self);
-}
-
-#[async_trait]
-impl McpStateProcessMonitor for Arc<RwLock<MCPState>> {
-    // Start a background task that periodically checks if processes are running
-    async fn start_process_monitor(self) {
-        info!("Starting process monitor task");
-
-        let self_clone_read_guard = self.read().await;
-        let tool_registry = self_clone_read_guard.tool_registry.clone();
-        let process_manager = self_clone_read_guard.process_manager.clone();
-        drop(self_clone_read_guard);
-
-        tokio::spawn(async move {
-            let mut interval = tokio::time::interval(tokio::time::Duration::from_secs(30));
-
-            loop {
-                interval.tick().await;
-
-                // Get all tools from database
-                let tools_result = {
-                    let registry = tool_registry.read().await;
-                    registry.get_all_servers()
+            // Save the tools to the database
+            let registry = self.tool_registry.read().await;
+            for tool in &tools {
+                let tool_info = ServerToolInfo {
+                    id: tool.name.clone(),
+                    name: tool.name.clone(),
+                    description: tool.description.clone(),
+                    input_schema: if tool.input_schema.is_object() {
+                        serde_json::from_value(tool.input_schema.clone()).ok()
+                    } else {
+                        None
+                    },
+                    proxy_id: Some(server_id.to_string()),
+                    server_id: server_id.to_string(),
+                    is_active: true,
                 };
-
-                let tools = match tools_result {
-                    Ok(tools) => tools,
-                    Err(e) => {
-                        error!("Failed to get tools from database: {}", e);
-                        continue;
-                    }
-                };
-
-                // Check all enabled tools
-                for (id_str, tool) in tools {
-                    if tool.enabled {
-                        // Check if process is running
-                        let process_running = {
-                            let process_manager = process_manager.read().await;
-                            process_manager
-                                .processes
-                                .get(&id_str)
-                                .is_some_and(|(p, status)| matches!(status, ServerStatus::Running) && p.is_some())
-                        };
-
-                        if !process_running {
-                            warn!("Process for tool {} is not running but should be. Will attempt restart.", id_str);
-                            let self_clone_write_guard = self.write().await;
-                            if let Err(e) = self_clone_write_guard.restart_server(&id_str).await {
-                                error!("Failed to restart tool {}: {}", id_str, e);
-                            } else {
-                                info!("Successfully restarted tool: {}", id_str);
-                            }
-                        }
-                    }
+                info!("Saving tool info to database: {:?}", tool_info);
+                if let Err(e) = registry.save_server_tool(&tool_info) {
+                    error!("Failed to save server tool to database: {}", e);
                 }
             }
-        });
+
+            Ok(tools)
+        } else {
+            info!("No client found for server: {}", server_id);
+            Err(format!("No client found for server: {}", server_id))
+        }
     }
 }

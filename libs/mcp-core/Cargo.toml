@@ -31,6 +31,8 @@ sysinfo = "0.33.1"
 once_cell = "1.21"
 home = "0.5"
 strip-ansi-escapes = "0.2"
+mcp_sdk_core = { package = "mcp-core", git = "https://github.com/modelcontextprotocol/rust-sdk.git", rev = "4597d1f" }
+mcp_sdk_client = { package = "mcp-client", git = "https://github.com/modelcontextprotocol/rust-sdk.git", rev = "4597d1f" }
 
 [lib]
 name = "mcp_core"
