@@ -138,7 +138,7 @@ async fn main() {
                 }
             };
 
-            let tools = match mcp_core.list_all_server_tools().await {
+            let tools = match mcp_core.list_all_server_tools(None).await {
                 Ok(tools) => tools,
                 Err(e) => {
                     error!("Error listing tools: {}", e);
