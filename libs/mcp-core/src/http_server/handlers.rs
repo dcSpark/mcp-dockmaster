@@ -177,7 +177,7 @@ pub async fn handle_mcp_request(
 }
 
 async fn handle_list_tools(mcp_core: MCPCore) -> Result<ServerToolsResponse, ErrorResponse> {
-    let result = mcp_core.list_all_server_tools().await;
+    let result = mcp_core.list_all_server_tools(None).await;
 
     match result {
         Ok(tools) => {

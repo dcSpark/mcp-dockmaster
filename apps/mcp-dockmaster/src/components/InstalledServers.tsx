@@ -1006,21 +1006,32 @@ const InstalledServers: React.FC = () => {
                 <div className="flex items-center justify-between">
                   <CardTitle className="text-lg">{server.name}</CardTitle>
                   <div className="flex items-center gap-2">
-                    <Tooltip>
-                      <TooltipTrigger>
-                        <Button
-                          variant="ghost"
-                          onClick={(e: React.MouseEvent) => {
-                            setAreToolsPaused(!areToolsPaused);
-                          }}
-                        >
-                          {areToolsPaused ? <Play className="h-4 w-4" /> : <EyeOff className="h-4 w-4" />}
-                        </Button>
-                      </TooltipTrigger>
-                      <TooltipContent>
-                        {areToolsPaused ? "Show Tools" : "Hide Tools"}
-                      </TooltipContent>
-                    </Tooltip>
+                    <div className="flex items-center gap-2">
+                      <span
+                        className={cn(
+                          "text-sm",
+                          areToolsPaused
+                            ? "text-slate-500"
+                            : "text-emerald-600 dark:text-emerald-400",
+                        )}
+                      >
+                        {areToolsPaused ? "Tools Hidden" : "Tools Visible"}
+                      </span>
+                      <Tooltip>
+                        <TooltipTrigger>
+                          <Switch
+                            checked={!areToolsPaused}
+                            onCheckedChange={(checked) => {
+                              setAreToolsPaused(!checked);
+                            }}
+                            className="data-[state=checked]:bg-emerald-500"
+                          />
+                        </TooltipTrigger>
+                        <TooltipContent>
+                          {areToolsPaused ? "Show Tools" : "Hide Tools"}
+                        </TooltipContent>
+                      </Tooltip>
+                    </div>
                     
                     <Tooltip>
                       <TooltipTrigger>
