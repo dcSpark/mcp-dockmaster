@@ -7,7 +7,7 @@ import {
   SERVER_UNINSTALLED 
 } from "../lib/events";
 import "./InstalledServers.css";
-import { ChevronDown, ChevronRight, Info, Settings, EyeOff, Play } from "lucide-react";
+import { ChevronDown, ChevronRight, Info, Settings } from "lucide-react";
 import { CardContent, CardDescription, CardHeader, CardTitle } from "./ui/card";
 import { Card } from "./ui/card";
 import { cn } from "@/lib/utils";
