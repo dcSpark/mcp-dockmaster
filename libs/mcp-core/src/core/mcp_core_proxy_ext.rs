@@ -31,7 +31,7 @@ pub trait McpCoreProxyExt {
         tool: ServerRegistrationRequest,
     ) -> Result<ServerRegistrationResponse, String>;
     async fn list_servers(&self) -> Result<Vec<RuntimeServer>, String>;
-    async fn list_all_server_tools(&self) -> Result<Vec<ServerToolInfo>, String>;
+    async fn list_all_server_tools(&self, hide_tools: Option<bool>) -> Result<Vec<ServerToolInfo>, String>;
     async fn list_server_tools(
         &self,
         request: DiscoverServerToolsRequest,
@@ -267,7 +267,12 @@ impl McpCoreProxyExt for MCPCore {
     }
 
     /// List all available tools from all running MCP servers
-    async fn list_all_server_tools(&self) -> Result<Vec<ServerToolInfo>, String> {
+    /// If hide_tools is true, returns an empty list of tools
+    async fn list_all_server_tools(&self, hide_tools: Option<bool>) -> Result<Vec<ServerToolInfo>, String> {
+        if hide_tools.unwrap_or(false) {
+            return Ok(Vec::new());
+        }
+        
         let mcp_state = self.mcp_state.read().await;
         let server_tools = mcp_state.server_tools.read().await;
         let mut all_tools = Vec::new();

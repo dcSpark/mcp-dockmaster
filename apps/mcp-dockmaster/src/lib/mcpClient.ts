@@ -186,9 +186,10 @@ export class MCPClient {
 
   /**
    * List all available tools from all running MCP servers
+   * @param hideTools If true, returns an empty list of tools
    */
-  static async listAllServerTools(): Promise<ServerToolInfo[]> {
-    return await invoke<ServerToolInfo[]>('list_all_server_tools');
+  static async listAllServerTools(hideTools: boolean = false): Promise<ServerToolInfo[]> {
+    return await invoke<ServerToolInfo[]>('list_all_server_tools', { hideTools });
   }
 
   /**
@@ -255,4 +256,4 @@ export class MCPClient {
   }
 }
 
-export default MCPClient;                
+export default MCPClient;                                

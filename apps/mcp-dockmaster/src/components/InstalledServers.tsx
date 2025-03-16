@@ -7,7 +7,7 @@ import {
   SERVER_UNINSTALLED 
 } from "../lib/events";
 import "./InstalledServers.css";
-import { ChevronDown, ChevronRight, Info, Settings } from "lucide-react";
+import { ChevronDown, ChevronRight, Info, Settings, EyeOff, Play } from "lucide-react";
 import { CardContent, CardDescription, CardHeader, CardTitle } from "./ui/card";
 import { Card } from "./ui/card";
 import { cn } from "@/lib/utils";
@@ -63,6 +63,7 @@ const InstalledServers: React.FC = () => {
   const [savingConfig, setSavingConfig] = useState(false);
   const [configPopupVisible, setConfigPopupVisible] = useState(false);
   const [transitioningServers, setTransitioningServers] = useState<Set<string>>(new Set());
+  const [areToolsPaused, setAreToolsPaused] = useState(false);
   const [currentConfigTool, setCurrentConfigTool] =
     useState<RuntimeServer | null>(null);
   const [infoPopupVisible, setInfoPopupVisible] = useState(false);
@@ -160,6 +161,12 @@ const InstalledServers: React.FC = () => {
       }
     }
   }, [expandedServerId]);
+  
+  // Effect to reload data when tools visibility state changes
+  useEffect(() => {
+    console.log("Tools visibility changed:", areToolsPaused ? "Paused" : "Visible");
+    loadData();
+  }, [areToolsPaused]);
 
   // Add event listeners for tool status changes
   useEffect(() => {
@@ -236,7 +243,7 @@ const InstalledServers: React.FC = () => {
     try {
       // Get servers and tools data separately
       const newServers = await MCPClient.listServers();
-      const allServerTools = await MCPClient.listAllServerTools();
+      const allServerTools = await MCPClient.listAllServerTools(areToolsPaused);
       
       // Update servers using a diff-based approach
       setServers(prevServers => {
@@ -368,7 +375,7 @@ const InstalledServers: React.FC = () => {
       
       // Update only the server tools without reloading all servers
       // This prevents unnecessary reordering of servers
-      const allServerTools = await MCPClient.listAllServerTools();
+      const allServerTools = await MCPClient.listAllServerTools(areToolsPaused);
       setServerTools(allServerTools);
     } catch (error) {
       console.error(`Failed to discover tools for server ${serverId}:`, error);
@@ -999,6 +1006,22 @@ const InstalledServers: React.FC = () => {
                 <div className="flex items-center justify-between">
                   <CardTitle className="text-lg">{server.name}</CardTitle>
                   <div className="flex items-center gap-2">
+                    <Tooltip>
+                      <TooltipTrigger>
+                        <Button
+                          variant="ghost"
+                          onClick={(e: React.MouseEvent) => {
+                            setAreToolsPaused(!areToolsPaused);
+                          }}
+                        >
+                          {areToolsPaused ? <Play className="h-4 w-4" /> : <EyeOff className="h-4 w-4" />}
+                        </Button>
+                      </TooltipTrigger>
+                      <TooltipContent>
+                        {areToolsPaused ? "Show Tools" : "Hide Tools"}
+                      </TooltipContent>
+                    </Tooltip>
+                    
                     <Tooltip>
                       <TooltipTrigger>
                         <Button
