@@ -35,16 +35,13 @@ impl MCPState {
         // Initialize with default value
         let are_tools_hidden = Arc::new(RwLock::new(false));
         
-        // Create the state instance
-        let state = Self {
+        // Return the state instance directly
+        Self {
             tool_registry,
             process_manager,
             server_tools,
             are_tools_hidden,
-        };
-        
-        // Return the state instance
-        state
+        }
     }
     
     /// Initialize the state from the database
