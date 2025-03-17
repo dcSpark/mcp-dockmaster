@@ -37,6 +37,13 @@ diesel::table! {
     }
 }
 
+diesel::table! {
+    app_settings (key) {
+        key -> Text,
+        value -> Text,
+    }
+}
+
 diesel::joinable!(server_env -> servers (server_id));
 
-diesel::allow_tables_to_appear_in_same_query!(server_tools, server_env, servers,);
+diesel::allow_tables_to_appear_in_same_query!(server_tools, server_env, servers, app_settings,);

@@ -60,4 +60,14 @@ impl ServerRegistry {
     pub fn delete_server_tool(&self, tool_id: &str, server_id: &str) -> Result<(), String> {
         self.db_manager.delete_server_tool(tool_id, server_id)
     }
+
+    /// Get a setting by key
+    pub fn get_setting(&self, key: &str) -> Result<String, String> {
+        self.db_manager.get_setting(key)
+    }
+
+    /// Save or update a setting
+    pub fn save_setting(&self, key: &str, value: &str) -> Result<(), String> {
+        self.db_manager.save_setting(key, value)
+    }
 }

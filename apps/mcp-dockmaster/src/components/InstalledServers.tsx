@@ -63,6 +63,7 @@ const InstalledServers: React.FC = () => {
   const [savingConfig, setSavingConfig] = useState(false);
   const [configPopupVisible, setConfigPopupVisible] = useState(false);
   const [transitioningServers, setTransitioningServers] = useState<Set<string>>(new Set());
+  // State for tool visibility - initialized to false (tools visible) and updated from database on mount
   const [areToolsPaused, setAreToolsPaused] = useState(false);
   const [currentConfigTool, setCurrentConfigTool] =
     useState<RuntimeServer | null>(null);
@@ -73,6 +74,22 @@ const InstalledServers: React.FC = () => {
     Array<{ id: string; message: string; type: "success" | "error" | "info" }>
   >([]);
 
+  // Effect to load tool visibility state on mount
+  useEffect(() => {
+    const loadToolVisibilityState = async () => {
+      try {
+        // The state will be loaded from the backend automatically when we call loadData()
+        // This ensures the tool visibility state is properly initialized from the database
+        await MCPClient.getToolsVisibilityState();
+        console.log("Tool visibility state loaded from database");
+      } catch (error) {
+        console.error("Failed to load tool visibility state:", error);
+      }
+    };
+    
+    loadToolVisibilityState();
+  }, []);
+  
   useEffect(() => {
     loadData();
 

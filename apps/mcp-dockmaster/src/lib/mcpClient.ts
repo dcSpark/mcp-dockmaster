@@ -260,6 +260,18 @@ export class MCPClient {
   static async setToolsHidden(hidden: boolean): Promise<void> {
     return await invoke<void>('set_tools_hidden', { hidden });
   }
+  
+  /**
+   * Get the current tool visibility state
+   * This is a placeholder method since the state is loaded automatically by the backend
+   * when the application starts. The frontend just needs to call loadData() to get the
+   * current state reflected in the tools list.
+   */
+  static async getToolsVisibilityState(): Promise<void> {
+    // The state is loaded automatically by the backend when listing tools
+    // This method exists for API completeness
+    return Promise.resolve();
+  }
 }
 
-export default MCPClient;                                                                                                
+export default MCPClient;                                                                                                                                

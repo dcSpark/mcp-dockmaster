@@ -77,6 +77,15 @@ impl MCPCore {
             error!("Failed to apply database migrations: {}", e);
             return Err(InitError::ApplyMigrations(e.to_string()));
         }
+        
+        // Initialize the state from the database
+        info!("Initializing state from database");
+        let mcp_state = self.mcp_state.read().await;
+        if let Err(e) = mcp_state.init_state().await {
+            error!("Failed to initialize state from database: {}", e);
+            // Continue even if state initialization fails
+        }
+        
         info!("Starting HTTP server");
         if let Err(e) = crate::http_server::start_http_server(self.clone()).await {
             error!("Failed to start HTTP server: {}", e);

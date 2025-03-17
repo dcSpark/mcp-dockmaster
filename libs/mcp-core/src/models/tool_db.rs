@@ -1,4 +1,4 @@
-use crate::schema::{server_env, server_tools, servers};
+use crate::schema::{app_settings, server_env, server_tools, servers};
 use diesel::prelude::*;
 
 /// This struct corresponds to a row in the `tools` table.
@@ -116,4 +116,20 @@ pub struct UpdateServerTool {
     pub input_schema: Option<Option<String>>,
     pub proxy_id: Option<Option<String>>,
     pub is_active: Option<bool>,
+}
+
+/// This struct corresponds to a row in the `app_settings` table.
+#[derive(Debug, Queryable, Selectable)]
+#[diesel(table_name = app_settings)]
+pub struct DBAppSetting {
+    pub key: String,
+    pub value: String,
+}
+
+/// For inserting a new row into the `app_settings` table
+#[derive(Debug, Insertable)]
+#[diesel(table_name = app_settings)]
+pub struct NewAppSetting<'a> {
+    pub key: &'a str,
+    pub value: &'a str,
 }

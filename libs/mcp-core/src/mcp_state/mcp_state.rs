@@ -32,12 +32,39 @@ impl MCPState {
         process_manager: Arc<RwLock<ProcessManager>>,
         server_tools: Arc<RwLock<HashMap<String, Vec<ServerToolInfo>>>>,
     ) -> Self {
-        Self {
+        // Initialize with default value
+        let are_tools_hidden = Arc::new(RwLock::new(false));
+        
+        // Create the state instance
+        let state = Self {
             tool_registry,
             process_manager,
             server_tools,
-            are_tools_hidden: Arc::new(RwLock::new(false)), // Initialize to false (tools visible)
+            are_tools_hidden,
+        };
+        
+        // Return the state instance
+        state
+    }
+    
+    /// Initialize the state from the database
+    pub async fn init_state(&self) -> Result<(), String> {
+        // Load the tool visibility state from the database
+        let registry = self.tool_registry.read().await;
+        match registry.get_setting("tools_hidden") {
+            Ok(value) => {
+                let hidden = value == "true";
+                let mut are_tools_hidden = self.are_tools_hidden.write().await;
+                *are_tools_hidden = hidden;
+                info!("Loaded tools visibility state from database: {}", hidden);
+            }
+            Err(_) => {
+                // Setting doesn't exist yet, use the default value (false)
+                info!("No tools visibility state found in database, using default (visible)");
+            }
         }
+        
+        Ok(())
     }
 
     /// Kill all running processes
@@ -299,10 +326,14 @@ impl MCPState {
 
     /// Set the tool visibility state
     pub async fn set_tools_hidden(&self, hidden: bool) -> Result<(), String> {
+        // Update the in-memory state
         let mut are_tools_hidden = self.are_tools_hidden.write().await;
         *are_tools_hidden = hidden;
         info!("Tools visibility set to: {}", if hidden { "hidden" } else { "visible" });
-        Ok(())
+        
+        // Persist the state to the database
+        let registry = self.tool_registry.read().await;
+        registry.save_setting("tools_hidden", if hidden { "true" } else { "false" })
     }
 }
 
