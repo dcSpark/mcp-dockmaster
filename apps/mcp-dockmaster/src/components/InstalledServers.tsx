@@ -980,9 +980,38 @@ const InstalledServers: React.FC = () => {
         ))}
       </div>
       <div className="flex flex-col space-y-1.5">
-        <h1 className="text-2xl font-semibold tracking-tight">
-          Servers Installed
-        </h1>
+        <div className="flex items-center justify-between">
+          <h1 className="text-2xl font-semibold tracking-tight">
+            Servers Installed
+          </h1>
+          <div className="flex items-center gap-2">
+            <span
+              className={cn(
+                "text-sm",
+                areToolsPaused
+                  ? "text-slate-500"
+                  : "text-emerald-600 dark:text-emerald-400",
+              )}
+            >
+              {areToolsPaused ? "Tools Hidden" : "Tools Visible"}
+            </span>
+            <Tooltip>
+              <TooltipTrigger>
+                <Switch
+                  checked={!areToolsPaused}
+                  onCheckedChange={(checked) => {
+                    setAreToolsPaused(!checked);
+                    MCPClient.setToolsHidden(!checked);
+                  }}
+                  className="data-[state=checked]:bg-emerald-500"
+                />
+              </TooltipTrigger>
+              <TooltipContent>
+                {areToolsPaused ? "Show Tools" : "Hide Tools"}
+              </TooltipContent>
+            </Tooltip>
+          </div>
+        </div>
         <p className="text-muted-foreground text-sm">
           Manage your installed AI applications and MCP tools.
         </p>
@@ -1006,33 +1035,6 @@ const InstalledServers: React.FC = () => {
                 <div className="flex items-center justify-between">
                   <CardTitle className="text-lg">{server.name}</CardTitle>
                   <div className="flex items-center gap-2">
-                    <div className="flex items-center gap-2">
-                      <span
-                        className={cn(
-                          "text-sm",
-                          areToolsPaused
-                            ? "text-slate-500"
-                            : "text-emerald-600 dark:text-emerald-400",
-                        )}
-                      >
-                        {areToolsPaused ? "Tools Hidden" : "Tools Visible"}
-                      </span>
-                      <Tooltip>
-                        <TooltipTrigger>
-                          <Switch
-                            checked={!areToolsPaused}
-                            onCheckedChange={(checked) => {
-                              setAreToolsPaused(!checked);
-                            }}
-                            className="data-[state=checked]:bg-emerald-500"
-                          />
-                        </TooltipTrigger>
-                        <TooltipContent>
-                          {areToolsPaused ? "Show Tools" : "Hide Tools"}
-                        </TooltipContent>
-                      </Tooltip>
-                    </div>
-                    
                     <Tooltip>
                       <TooltipTrigger>
                         <Button
