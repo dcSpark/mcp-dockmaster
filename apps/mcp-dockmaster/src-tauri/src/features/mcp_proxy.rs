@@ -29,17 +29,12 @@ pub async fn list_servers(mcp_core: State<'_, MCPCore>) -> Result<Vec<RuntimeSer
 }
 
 /// List all available tools from all running MCP servers
-/// If hide_tools is true, returns an empty list of tools
+/// If tools are hidden in the state, returns an empty list of tools
 #[tauri::command]
 pub async fn list_all_server_tools(
     mcp_core: State<'_, MCPCore>,
-    hide_tools: Option<bool>,
 ) -> Result<Vec<ServerToolInfo>, String> {
-    if hide_tools.unwrap_or(false) {
-        Ok(Vec::new())
-    } else {
-        mcp_core.list_all_server_tools().await
-    }
+    mcp_core.list_all_server_tools().await
 }
 
 /// Discover tools from a specific MCP server
@@ -157,6 +152,16 @@ pub async fn import_server_from_url(
     url: String,
 ) -> Result<ServerRegistrationResponse, String> {
     mcp_core.import_server_from_url(url).await
+}
+
+/// Set the tool visibility state
+#[tauri::command]
+pub async fn set_tools_hidden(
+    mcp_core: State<'_, MCPCore>,
+    hidden: bool,
+) -> Result<(), String> {
+    let mcp_state = mcp_core.mcp_state.read().await;
+    mcp_state.set_tools_hidden(hidden).await
 }
 
 #[tauri::command]

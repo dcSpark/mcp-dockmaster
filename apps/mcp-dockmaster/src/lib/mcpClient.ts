@@ -186,10 +186,9 @@ export class MCPClient {
 
   /**
    * List all available tools from all running MCP servers
-   * @param hideTools If true, returns an empty list of tools
    */
-  static async listAllServerTools(hideTools: boolean = false): Promise<ServerToolInfo[]> {
-    return await invoke<ServerToolInfo[]>('list_all_server_tools', { hideTools });
+  static async listAllServerTools(): Promise<ServerToolInfo[]> {
+    return await invoke<ServerToolInfo[]>('list_all_server_tools');
   }
 
   /**
@@ -254,6 +253,13 @@ export class MCPClient {
   static async getClaudeConfig(): Promise<any> {
     return await invoke<any>('get_claude_config');
   }
+
+  /**
+   * Set the tool visibility state
+   */
+  static async setToolsHidden(hidden: boolean): Promise<void> {
+    return await invoke<void>('set_tools_hidden', { hidden });
+  }
 }
 
-export default MCPClient;                                
+export default MCPClient;                                                                                                

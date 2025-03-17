@@ -23,6 +23,7 @@ pub struct MCPState {
     pub tool_registry: Arc<RwLock<ServerRegistry>>,
     pub process_manager: Arc<RwLock<ProcessManager>>,
     pub server_tools: Arc<RwLock<HashMap<String, Vec<ServerToolInfo>>>>,
+    pub are_tools_hidden: Arc<RwLock<bool>>,
 }
 
 impl MCPState {
@@ -35,6 +36,7 @@ impl MCPState {
             tool_registry,
             process_manager,
             server_tools,
+            are_tools_hidden: Arc::new(RwLock::new(false)), // Initialize to false (tools visible)
         }
     }
 
@@ -287,6 +289,20 @@ impl MCPState {
         }
 
         Ok(tools)
+    }
+
+    /// Get the current tool visibility state
+    pub async fn are_tools_hidden(&self) -> bool {
+        let are_tools_hidden = self.are_tools_hidden.read().await;
+        *are_tools_hidden
+    }
+
+    /// Set the tool visibility state
+    pub async fn set_tools_hidden(&self, hidden: bool) -> Result<(), String> {
+        let mut are_tools_hidden = self.are_tools_hidden.write().await;
+        *are_tools_hidden = hidden;
+        info!("Tools visibility set to: {}", if hidden { "hidden" } else { "visible" });
+        Ok(())
     }
 }
 

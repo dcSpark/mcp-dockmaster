@@ -243,7 +243,7 @@ const InstalledServers: React.FC = () => {
     try {
       // Get servers and tools data separately
       const newServers = await MCPClient.listServers();
-      const allServerTools = await MCPClient.listAllServerTools(areToolsPaused);
+      const allServerTools = await MCPClient.listAllServerTools();
       
       // Update servers using a diff-based approach
       setServers(prevServers => {
@@ -375,7 +375,7 @@ const InstalledServers: React.FC = () => {
       
       // Update only the server tools without reloading all servers
       // This prevents unnecessary reordering of servers
-      const allServerTools = await MCPClient.listAllServerTools(areToolsPaused);
+      const allServerTools = await MCPClient.listAllServerTools();
       setServerTools(allServerTools);
     } catch (error) {
       console.error(`Failed to discover tools for server ${serverId}:`, error);
