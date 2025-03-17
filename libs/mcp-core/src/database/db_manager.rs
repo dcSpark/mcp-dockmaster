@@ -8,8 +8,8 @@ use std::path::PathBuf;
 use std::sync::Arc;
 
 use crate::models::tool_db::{
-    DBServer, DBServerEnv, DBServerTool, NewServer, NewServerEnv, NewServerTool, UpdateServer,
-    UpdateServerTool,
+    DBAppSetting, DBServer, DBServerEnv, DBServerTool, NewAppSetting, NewServer, NewServerEnv, 
+    NewServerTool, UpdateServer, UpdateServerTool,
 };
 use crate::models::types::{
     Distribution, InputSchema, ServerConfiguration, ServerDefinition, ServerEnvironment,
