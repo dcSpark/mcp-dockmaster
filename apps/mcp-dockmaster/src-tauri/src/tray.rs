@@ -1,5 +1,5 @@
 use tauri::{
-    menu::{MenuBuilder, MenuItemBuilder},
+    menu::{MenuBuilder, MenuItemBuilder, CheckMenuItemBuilder},
     tray::{MouseButton, TrayIconBuilder, TrayIconEvent},
     Manager,
 };
@@ -15,11 +15,18 @@ pub fn create_tray(app: &tauri::AppHandle) -> tauri::Result<()> {
     let show_menu_item = MenuItemBuilder::with_id("show", "Show").build(app)?;
     let check_for_updates_menu_item =
         MenuItemBuilder::with_id("check_for_updates", "Check for Updates").build(app)?;
+    
+    // Create a checkable menu item for MCP Servers Active - default to checked (active)
+    let mcp_servers_active_menu_item = CheckMenuItemBuilder::with_id("mcp_servers_active", "MCP Servers Active")
+        .checked(true)
+        .build(app)?;
+    
     let menu = MenuBuilder::new(app)
         .items(&[
-            &quit_menu_item,
             &show_menu_item,
             &check_for_updates_menu_item,
+            &mcp_servers_active_menu_item,
+            &quit_menu_item,
         ])
         .build()?;
     let is_template = cfg!(target_os = "macos");
@@ -58,6 +65,17 @@ pub fn create_tray(app: &tauri::AppHandle) -> tauri::Result<()> {
                 tauri::async_runtime::spawn(async move {
                     let _ = check_for_updates(&app_handle_clone, true).await;
                 });
+            }
+            "mcp_servers_active" => {
+                let app_handle = tray.app_handle().clone();
+                let menu_item = tray.get_item("mcp_servers_active");
+                let is_checked = menu_item.is_checked().unwrap_or(true);
+                
+                // Toggle the state - emit an event to the frontend
+                let _ = app_handle.emit_all("toggle_mcp_servers", !is_checked);
+                
+                // Update the menu item's checked state
+                let _ = menu_item.set_checked(!is_checked);
             }
             _ => (),
         })
