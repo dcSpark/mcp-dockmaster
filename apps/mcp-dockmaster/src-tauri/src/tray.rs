@@ -1,14 +1,16 @@
 use tauri::{
     menu::{MenuBuilder, MenuItemBuilder, CheckMenuItemBuilder},
     tray::{MouseButton, TrayIconBuilder, TrayIconEvent},
-    Manager,
+    Manager, State,
 };
 
 use crate::{
     app_uninit,
+    features::mcp_proxy::set_tools_hidden,
     updater::check_for_updates,
     windows::{recreate_window, Window},
 };
+use mcp_core::core::mcp_core::MCPCore;
 
 pub fn create_tray(app: &tauri::AppHandle) -> tauri::Result<()> {
     let quit_menu_item = MenuItemBuilder::with_id("quit", "Quit").build(app)?;
@@ -68,14 +70,13 @@ pub fn create_tray(app: &tauri::AppHandle) -> tauri::Result<()> {
             }
             "mcp_servers_active" => {
                 let app_handle = tray.app_handle().clone();
-                let menu_item = tray.get_item("mcp_servers_active");
-                let is_checked = menu_item.is_checked().unwrap_or(true);
+                let is_checked = event.checked().unwrap_or(true);
                 
-                // Toggle the state - emit an event to the frontend
-                let _ = app_handle.emit_all("toggle_mcp_servers", !is_checked);
-                
-                // Update the menu item's checked state
-                let _ = menu_item.set_checked(!is_checked);
+                // Toggle the state using the set_tools_hidden command
+                tauri::async_runtime::spawn(async move {
+                    let mcp_core = app_handle.state::<MCPCore>();
+                    let _ = set_tools_hidden(mcp_core, !is_checked).await;
+                });
             }
             _ => (),
         })
