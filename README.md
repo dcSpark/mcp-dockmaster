@@ -1,7 +1,29 @@
 # MCP Dockmaster
 
-MCP Dockmaster is a straightforward tool designed to help you easily install, manage, and monitor AI applications using MCP (Model Context Protocol). MCP is an open-source standard created by Anthropic that allows AI apps like Claude Desktop or Cursor to seamlessly access data from platforms such as Slack or Google Drive, interact with other applications, and connect to APIs.
+## What is MCP Dockmaster?
 
+MCP Dockmaster is a powerful desktop application that simplifies how you discover, install, and manage AI applications that use the Model Context Protocol (MCP). Think of it as an "app store" for AI tools that work with large language models like Claude.
+
+### Key Features:
+
+- **Easy Installation**: One-click install for MCP-compatible AI tools and servers
+- **Centralized Management**: Monitor and control all your MCP applications from a single dashboard
+- **Categorized Discovery**: Browse AI tools by category (Productivity, Development, Research, etc.)
+- **Seamless Integration**: Connect AI assistants to your favorite apps and data sources
+
+## What is MCP?
+
+MCP (Model Context Protocol) is an open-source standard created by Anthropic that enables AI assistants like Claude to:
+- Access data from platforms like Slack, Google Drive, and GitHub
+- Interact with other applications on your system
+- Connect to APIs and services securely
+- Extend AI capabilities through specialized tools
+
+## Demo
+
+See MCP Dockmaster in action:
+
+https://mcp-dockmaster.com/dockmaster-demo.mp4
 
 # MCP Dockmaster Monorepo
 
@@ -104,4 +126,4 @@ This command optimizes the build process by only running tasks for projects that
 ## Learn More
 
 - [NX Documentation](https://nx.dev) 
-The official NX documentation provides comprehensive guides and API references to help you get the most out of NX.  
+The official NX documentation provides comprehensive guides and API references to help you get the most out of NX.        
