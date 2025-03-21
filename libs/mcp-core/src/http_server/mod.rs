@@ -1,4 +1,4 @@
-mod handlers;
+pub mod handlers;
 mod routes;
 
 // Re-export public items

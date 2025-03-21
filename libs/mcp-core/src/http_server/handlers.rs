@@ -1,4 +1,5 @@
 use std::time::{Duration, Instant};
+use std::collections::HashMap;
 
 use axum::response::IntoResponse;
 use axum::{http::StatusCode, Extension, Json};
@@ -14,32 +15,78 @@ use crate::core::mcp_core_proxy_ext::McpCoreProxyExt;
 use crate::models::types::{
     Distribution, ErrorResponse, InputSchema, RegistryToolsResponse, ServerConfiguration,
     ServerRegistrationRequest, ServerRegistrationResponse, ServerToolInfo, ServerToolsResponse,
-    ToolExecutionRequest,
+    ToolExecutionRequest, InputSchemaProperty
 };
 use crate::types::{ConfigUpdateRequest, ServerConfigUpdateRequest};
+use mcp_sdk_server::Router;
 
-#[derive(Deserialize)]
+use axum::{
+    response::sse::{Event, Sse},
+    extract::Query,
+};
+use futures::stream::Stream;
+use std::convert::Infallible;
+use tokio::io::{self, AsyncWriteExt};
+use futures::StreamExt;
+use uuid::Uuid;
+
+use mcp_sdk_server::router::RouterService;
+use crate::mcp_server::tools::{TOOL_REGISTER_SERVER, get_register_server_tool};
+
+use std::sync::Arc;
+use tokio::sync::Mutex as TokioMutex;
+
+use crate::mcp_server::mcp_router::MCPDockmasterRouter;
+use crate::mcp_server::session_manager::SESSION_MANAGER;
+use mcp_sdk_server::{ByteTransport, Server};
+use tokio_util::codec::FramedRead;
+
+
+/// JSON-RPC request structure
+#[derive(Deserialize, Debug)]
 pub struct JsonRpcRequest {
     #[allow(dead_code)]
-    jsonrpc: String,
-    id: Value,
-    method: String,
-    params: Option<Value>,
+    pub jsonrpc: String,
+    pub id: Value,
+    pub method: String,
+    pub params: Option<Value>,
 }
 
-#[derive(Serialize)]
+/// JSON-RPC response structure
+#[derive(Serialize, Debug)]
 pub struct JsonRpcResponse {
-    jsonrpc: String,
-    id: Value,
-    result: Option<Value>,
-    error: Option<JsonRpcError>,
+    pub jsonrpc: String,
+    pub id: Value,
+    pub result: Option<Value>,
+    pub error: Option<JsonRpcError>,
 }
 
-#[derive(Serialize)]
+/// JSON-RPC error structure
+#[derive(Serialize, Debug)]
 pub struct JsonRpcError {
-    code: i32,
-    message: String,
-    data: Option<Value>,
+    pub code: i32,
+    pub message: String,
+    pub data: Option<Value>,
+}
+
+/// JSON-RPC method enum
+#[derive(Debug)]
+pub enum JsonRpcMethod {
+    ToolsList,
+    ToolsHidden,
+    ToolsCall,
+    PromptsList,
+    PromptsGet,
+    ResourcesList,
+    ResourcesRead,
+    RegistryList,
+    RegistryInstall,
+    RegistryImport,
+    ServerStart,
+    ServerStop,
+    ServerConfig,
+    ServerDelete,
+    Unknown(String),
 }
 
 // Cache structure to store registry data and timestamp
@@ -65,11 +112,30 @@ pub async fn health_check() -> impl IntoResponse {
 
 pub async fn handle_mcp_request(
     Extension(mcp_core): Extension<MCPCore>,
+    Extension(mcp_router): Extension<crate::mcp_server::MCPDockmasterRouter>,
     Json(request): Json<JsonRpcRequest>,
 ) -> Json<JsonRpcResponse> {
     info!("Received MCP request: method={}", request.method);
 
     let result: Result<Value, Value> = match request.method.as_str() {
+        // Use our MCP router for the initialize method
+        "initialize" => {
+            // Use the router's capabilities for the response
+            let capabilities = mcp_router.capabilities();
+            let name = mcp_router.name();
+            let instructions = mcp_router.instructions();
+            
+            // Return the initialization response
+            Ok(json!({
+                "protocolVersion": "2024-11-05",
+                "serverInfo": {
+                    "name": name,
+                    "version": "1.0.0"
+                },
+                "instructions": instructions,
+                "capabilities": capabilities
+            }))
+        },
         "tools/list" => match handle_list_tools(mcp_core).await {
             Ok(response) => Ok(serde_json::to_value(response).unwrap()),
             Err(error) => Err(serde_json::to_value(error).unwrap()),
@@ -84,7 +150,7 @@ pub async fn handle_mcp_request(
                     "message": "Missing parameters"
                 }))
             }
-        }
+        },
         "prompts/list" => handle_list_prompts().await,
         "resources/list" => handle_list_resources().await,
         "resources/read" => {
@@ -96,7 +162,7 @@ pub async fn handle_mcp_request(
                     "message": "Invalid params - missing parameters for resource reading"
                 }))
             }
-        }
+        },
         "prompts/get" => {
             if let Some(params) = request.params {
                 handle_get_prompt(params).await
@@ -106,7 +172,7 @@ pub async fn handle_mcp_request(
                     "message": "Invalid params - missing parameters for prompt retrieval"
                 }))
             }
-        }
+        },
         "registry/install" => {
             if let Some(params) = request.params {
                 match handle_register_tool(mcp_core, params).await {
@@ -119,7 +185,7 @@ pub async fn handle_mcp_request(
                     "message": "Missing parameters for tool installation"
                 }))
             }
-        }
+        },
         "registry/import" => {
             if let Some(params) = request.params {
                 handle_import_server_from_url(mcp_core, params).await
@@ -129,7 +195,7 @@ pub async fn handle_mcp_request(
                     "message": "Missing parameters for server import"
                 }))
             }
-        }
+        },
         "registry/list" => handle_list_all_tools(mcp_core).await,
         "server/config" => {
             if let Some(params) = request.params {
@@ -140,7 +206,7 @@ pub async fn handle_mcp_request(
                     "message": "Invalid params - missing parameters for server config"
                 }))
             }
-        }
+        },
         _ => Err(json!({
             "code": -32601,
             "message": format!("Method '{}' not found", request.method)
@@ -178,10 +244,45 @@ pub async fn handle_mcp_request(
 }
 
 async fn handle_list_tools(mcp_core: MCPCore) -> Result<ServerToolsResponse, ErrorResponse> {
+    // Get the installed tools from MCPCore
     let result = mcp_core.list_all_server_tools().await;
+
+    // Create a list of built-in tools converted to ServerToolInfo format
+    let register_server_tool = get_register_server_tool();
+    let built_in_tools = vec![
+        ServerToolInfo {
+            id: register_server_tool.name.clone(),
+            name: TOOL_REGISTER_SERVER.to_string(),
+            description: register_server_tool.description.clone(),
+            server_id: "builtin".to_string(),
+            proxy_id: None,
+            is_active: true,
+            input_schema: Some(InputSchema {
+                r#type: "object".to_string(),
+                properties: HashMap::from_iter(
+                    serde_json::from_value::<HashMap<String, InputSchemaProperty>>(
+                        register_server_tool.input_schema.get("properties")
+                            .cloned()
+                            .unwrap_or_else(|| json!({}))
+                    ).unwrap_or_default()
+                ),
+                required: register_server_tool.input_schema.get("required")
+                    .and_then(|v| v.as_array())
+                    .map(|arr| arr.iter()
+                        .filter_map(|item| item.as_str().map(|s| s.to_string()))
+                        .collect())
+                    .unwrap_or_else(|| Vec::new()),
+                ..Default::default()
+            }),
+        }
+    ];
 
     match result {
         Ok(tools) => {
+            // Add built-in tools first, then user-installed tools
+            let mut all_tools = built_in_tools;
+            
+            // Add the user-installed tools
             let tools_with_defaults: Vec<ServerToolInfo> = tools
                 .into_iter()
                 .map(|tool| {
@@ -197,9 +298,11 @@ async fn handle_list_tools(mcp_core: MCPCore) -> Result<ServerToolsResponse, Err
                     tool
                 })
                 .collect();
+            
+            all_tools.extend(tools_with_defaults);
 
             Ok(ServerToolsResponse {
-                tools: tools_with_defaults,
+                tools: all_tools,
             })
         }
         Err(e) => Err(ErrorResponse {
@@ -233,7 +336,7 @@ enum ToolRegistrationRequest {
     ById(ToolRegistrationRequestById),
 }
 
-async fn handle_register_tool(
+pub async fn handle_register_tool(
     mcp_core: MCPCore,
     params: Value,
 ) -> Result<ServerRegistrationResponse, ErrorResponse> {
@@ -626,4 +729,176 @@ async fn handle_get_server_config(mcp_core: MCPCore, params: Value) -> Result<Va
 async fn handle_tools_hidden(mcp_core: MCPCore) -> Result<Value, Value> {
     let hidden = mcp_core.are_tools_hidden().await;
     Ok(json!({ "hidden": hidden }))
+}
+
+/// SSE endpoint handler with bidirectional communication
+pub async fn sse_handler(
+    Extension(_mcp_core): Extension<MCPCore>,
+    Extension(router): Extension<MCPDockmasterRouter>,
+) -> Sse<impl Stream<Item = Result<Event, Infallible>>> {
+    let session_id = Uuid::new_v4().to_string();
+    info!("New SSE connection established: {}", session_id);
+    
+    const BUFFER_SIZE: usize = 1 << 12; // 4KB
+    // Create channels for command and response
+    let (c2s_read, c2s_write) = io::simplex(BUFFER_SIZE);
+    let (s2c_read, s2c_write) = io::simplex(BUFFER_SIZE);
+    // Create a separate channel for notifications
+    let (notification_read, notification_write) = io::simplex(BUFFER_SIZE);
+    
+    // Wrap writers in Arc<Mutex>
+    let command_writer = Arc::new(TokioMutex::new(c2s_write));
+    let notification_writer = Arc::new(TokioMutex::new(notification_write));
+    
+    // Register both channels
+    SESSION_MANAGER.register_session(
+        session_id.clone(),
+        command_writer,
+        notification_writer
+    ).await;
+    
+    // Spawn a task to handle incoming messages from the client
+    {
+        let session_id = session_id.clone();
+        let router_clone = router.clone();
+        
+        tokio::spawn(async move {
+            let router_service = RouterService(router_clone);
+            let server = Server::new(router_service);
+            let byte_transport = ByteTransport::new(c2s_read, s2c_write);
+            
+            let result = server.run(byte_transport).await;
+            
+            if let Err(e) = &result {
+                log::error!("Server run error for session {}: {:?}", session_id, e);
+            }
+            
+            SESSION_MANAGER.remove_session(&session_id).await;
+            
+            result
+        });
+    }
+    
+    // Create an initial event with the session ID
+    let initial_event = futures::stream::once(futures::future::ok(
+        Event::default()
+            .event("endpoint")
+            .data(format!("?sessionId={session_id}"))
+    ));
+    
+    // Create streams for both s2c and notification channels
+    let message_stream = create_message_stream(s2c_read);
+    let notification_stream = create_message_stream(notification_read);
+    
+    // Merge all streams together
+    let combined_stream = initial_event
+        .chain(futures::stream::select(message_stream, notification_stream));
+    
+    Sse::new(combined_stream)
+}
+
+/// Query parameter struct for session ID
+#[derive(Debug, Deserialize)]
+pub struct SessionIdParam {
+    #[serde(rename = "sessionId")]
+    pub session_id: String,
+}
+
+/// Handler for JSON-RPC requests via POST to the SSE endpoint
+pub async fn sse_post_handler(
+    Query(params): Query<SessionIdParam>,
+    body: axum::body::Body,
+) -> (StatusCode, &'static str) {
+    let session_id = &params.session_id;
+    info!("Received POST request for session {}", session_id);
+    
+    let writer = {
+        let sessions = SESSION_MANAGER.sessions.lock().await;
+        match sessions.get(session_id) {
+            Some(channels) => channels.command.clone(),
+            None => {
+                log::error!("Session {} not found", session_id);
+                return (StatusCode::NOT_FOUND, "Session not found");
+            }
+        }
+    };
+    
+    // Convert the body to a byte stream
+    const BODY_BYTES_LIMIT: usize = 1 << 22; // 4MB
+    let mut body = body.into_data_stream();
+    let mut size = 0;
+    
+    // Lock the writer for the entire request
+    let mut writer = writer.lock().await;
+    
+    // Forward each chunk to the session's channel
+    while let Some(chunk) = body.next().await {
+        match chunk {
+            Ok(chunk) => {
+                size += chunk.len();
+                if size > BODY_BYTES_LIMIT {
+                    log::error!("Payload too large for session {}", session_id);
+                    return (StatusCode::PAYLOAD_TOO_LARGE, "Payload too large");
+                }
+                
+                if let Err(e) = writer.write_all(&chunk).await {
+                    log::error!("Failed to write to session {}: {}", session_id, e);
+                    return (StatusCode::INTERNAL_SERVER_ERROR, "Failed to write to session");
+                }
+            }
+            Err(_) => {
+                log::error!("Invalid request body for session {}", session_id);
+                return (StatusCode::BAD_REQUEST, "Invalid request body");
+            }
+        }
+    }
+    
+    // Add a newline to separate messages
+    if let Err(e) = writer.write_u8(b'\n').await {
+        log::error!("Failed to write newline to session {}: {}", session_id, e);
+        return (StatusCode::INTERNAL_SERVER_ERROR, "Failed to write to session");
+    }
+    
+    // Flush the writer to ensure the data is sent
+    if let Err(e) = writer.flush().await {
+        log::error!("Failed to flush session {}: {}", session_id, e);
+        return (StatusCode::INTERNAL_SERVER_ERROR, "Failed to flush session");
+    }
+    
+    // Return a success response
+    (StatusCode::ACCEPTED, "")
+}
+
+/// Creates a message stream from a read half of a simplex channel
+fn create_message_stream(
+    read_half: io::ReadHalf<io::SimplexStream>,
+) -> impl Stream<Item = Result<Event, Infallible>> {
+    futures::stream::unfold(read_half, |read_half| async move {
+        let mut framed = FramedRead::new(read_half, crate::jsonrpc_frame_codec::JsonRpcFrameCodec);
+        
+        if let Some(result) = framed.next().await {
+            let read_half = framed.into_inner();
+            match result {
+                Ok(bytes) => {
+                    let event = match std::str::from_utf8(&bytes) {
+                        Ok(message) => {
+                            Event::default().event("message").data(message)
+                        },
+                        Err(e) => {
+                            log::error!("Error parsing UTF-8: {}", e);
+                            Event::default().event("error").data(format!("UTF-8 error: {}", e))
+                        }
+                    };
+                    Some((Ok::<_, Infallible>(event), read_half))
+                },
+                Err(e) => {
+                    log::error!("Error reading frame: {}", e);
+                    let event = Event::default().event("error").data(format!("Frame error: {}", e));
+                    Some((Ok::<_, Infallible>(event), read_half))
+                }
+            }
+        } else {
+            None
+        }
+    })
 }

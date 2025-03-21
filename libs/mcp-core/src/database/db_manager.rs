@@ -314,11 +314,16 @@ impl DBManager {
             None
         };
 
-        let command_str = tool
+        let command_opt = tool
             .configuration
             .as_ref()
-            .and_then(|c| c.command.clone())
-            .unwrap_or_default();
+            .and_then(|c| c.command.clone());
+            
+        // Only set command_str to None if we have no configuration or command is None
+        let command_str = match &command_opt {
+            Some(cmd) if !cmd.is_empty() => cmd.clone(),
+            _ => String::new() // Empty string will be mapped to None below
+        };
 
         // Prepare upsert struct
         let new_tool = NewServer {

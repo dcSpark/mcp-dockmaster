@@ -497,7 +497,7 @@ impl McpCoreProxyExt for MCPCore {
         }
     }
 
-    /// Initialize the MCP server and start background services
+    /// Initialize and start background mcp services
     async fn init_mcp_server(&self) -> Result<()> {
         info!("Starting background initialization of MCP services");
 
@@ -514,6 +514,8 @@ impl McpCoreProxyExt for MCPCore {
                 return Err(anyhow::anyhow!("Failed to get tools from database: {}", e));
             }
         };
+        
+        info!("MCP state initialized, preparing to restart enabled tools");
 
         // Update the state with the new registry
         // Create a vector of futures for parallel execution

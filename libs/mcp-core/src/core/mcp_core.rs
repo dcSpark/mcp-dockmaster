@@ -1,6 +1,6 @@
 use std::{collections::HashMap, path::PathBuf, sync::Arc};
 
-use log::{error, info};
+use log::{error, info, warn};
 use tokio::sync::RwLock;
 
 use crate::core::mcp_core_database_ext::McpCoreDatabaseExt;
@@ -108,16 +108,24 @@ impl MCPCore {
             error!("Failed to apply database migrations: {}", e);
             return Err(InitError::ApplyMigrations(e.to_string()));
         }
+        
+        // Update registry cache before starting the server
+        info!("Updating registry cache before server initialization");
+        match crate::registry::registry_cache::RegistryCache::instance().update_registry_cache().await {
+            Ok(_) => info!("Registry cache successfully updated"),
+            Err(e) => warn!("Warning: Failed to update registry cache: {}", e.message),
+        }
+        info!("Initializing Background MCP servers");
+        if let Err(e) = self.init_mcp_server().await {
+            error!("Failed to initialize MCP server: {}", e);
+            return Err(InitError::InitMcpServer(e.to_string()));
+        }
         info!("Starting HTTP server");
         if let Err(e) = crate::http_server::start_http_server(self.clone(), self.port).await {
             error!("Failed to start HTTP server: {}", e);
             return Err(InitError::StartHttpServer(e.to_string()));
         }
-        info!("Initializing MCP server");
-        if let Err(e) = self.init_mcp_server().await {
-            error!("Failed to initialize MCP server: {}", e);
-            return Err(InitError::InitMcpServer(e.to_string()));
-        }
+
         Ok(())
     }
 
