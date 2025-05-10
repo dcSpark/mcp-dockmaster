@@ -22,7 +22,7 @@
       "executor": "nx:run-commands",
       "options": {
         "command": "npx eslint src",
-        "cwd": "apps/mcp-proxy-server"
+        "cwd": "apps/mcp-server-hello-world"
       }
     },
     "inspector": {

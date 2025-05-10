@@ -1,0 +1,18 @@
+[package]
+name = "mcp-proxy-server"
+version = "0.1.0"
+edition = "2024"
+
+[dependencies]
+tokio = { version = "1.45", features = ["io-util", "rt-multi-thread"] }
+serde = { version = "1.0", features = ["derive"] }
+serde_json = "1.0"
+anyhow = "1.0"
+tracing = "0.1"
+tracing-subscriber = { version = "0.3", features = ["env-filter"] }
+tracing-appender = "0.2"
+futures = "0.3"
+clap = { version = "4.5", features = ["derive"] }
+reqwest = { version = "0.12.15", features = ["json"] }
+tower = "0.4.13"
+rmcp = { git = "https://github.com/modelcontextprotocol/rust-sdk", branch = "main", features = ["client", "server", "transport-sse", "transport-sse-server", "transport-io"] }

@@ -1,8 +1,7 @@
 use anyhow::Result;
 use clap::Parser;
-use mcp_server::router::RouterService;
-use mcp_server::{ByteTransport, Server};
-use tokio::io::{stdin, stdout};
+use rmcp::{ServiceExt, transport::stdio};
+use server::mcp_proxy_client::get_mcp_client;
 use tracing_appender::rolling::{RollingFileAppender, Rotation};
 use tracing_subscriber::{self, EnvFilter};
 
@@ -13,7 +12,7 @@ pub mod server;
 struct Args {
     /// Use SSE transport with specified port
     #[arg(long)]
-    sse: Option<u16>,
+    see_target_address: Option<String>,
 }
 
 #[tokio::main]
@@ -34,17 +33,20 @@ async fn main() -> Result<()> {
 
     tracing::info!("Starting MCP Dockmaster Proxy Server");
 
-    // Create transport
-    let transport = ByteTransport::new(stdin(), stdout());
+    let args = Args::parse();
+    let sse_address = args
+        .see_target_address
+        .unwrap_or("http://localhost:11011/mcp/sse".to_string());
+    let mcp_proxy_client = get_mcp_client(&sse_address).await.unwrap();
 
-    // Create an instance of our router
-    let mut dockmaster_router = server::router::DockmasterRouter::new();
-    dockmaster_router.initialize().await;
-    let router = RouterService(dockmaster_router);
+    tracing::info!("Creating stdio transport...");
+    let transport = stdio();
 
-    // Create the server
-    let server = Server::new(router);
+    tracing::info!("Creating MCP server...");
+    let mcp_proxy_server = server::mcp_proxy_server::McpProxyServer::new(mcp_proxy_client)
+        .serve(transport)
+        .await?;
 
-    tracing::info!("Ready to handle requests...");
-    Ok(server.run(transport).await?)
+    mcp_proxy_server.waiting().await?;
+    Ok(())
 }

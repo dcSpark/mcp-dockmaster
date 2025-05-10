@@ -7,22 +7,27 @@
       "dependsOn": ["mcp-proxy-server:build"],
       "executor": "nx:run-commands",
       "options": {
-        "command": "copyfiles -u 3 \"dist/apps/mcp-proxy-server/*\" \"apps/mcp-dockmaster/src-tauri/sidecars/\""
+        "command": "deno run -A ci-scripts/copy-mcp-proxy-server-binary/index.ts"
+      },
+      "configurations": {
+        "production": {
+          "args": ["--build-type", "release"]
+        }
       }
     },
     "build": {
       "dependsOn": ["copy-proxy-server-sidecar"],
       "executor": "nx:run-commands",
       "options": {
-        "command": "npx tauri build --config \"./src-tauri/tauri.conf.local.json\"",
+        "command": "npx tauri build",
         "cwd": "apps/mcp-dockmaster"
       },
       "configurations": {
         "local": {
-          "command": "npx tauri build --config \"./src-tauri/tauri.conf.local.json\""
+          "args": ["--config", "./src-tauri/tauri.conf.local.json"]
         },
         "production": {
-          "command": "npx tauri build"
+          "args": []
         }
       }
     },
