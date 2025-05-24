@@ -1,12 +1,12 @@
-use std::time::{Duration, Instant};
 use lazy_static::lazy_static;
 use log::{info, warn};
 use reqwest;
 use serde_json::Value;
 use std::sync::{Arc, RwLock};
+use std::time::{Duration, Instant};
 use tokio::sync::Mutex;
 
-use crate::models::types::{ErrorResponse, RegistryToolsResponse};
+use crate::models::types::RegistryToolsResponse;
 
 // Cache duration constant (10 minute)
 const CACHE_DURATION: Duration = Duration::from_secs(600);
@@ -95,12 +95,12 @@ impl RegistryCache {
 
         match result {
             Ok(response) => Ok(response),
-            Err(e) => Err(format!("Failed to fetch registry data: {}", e.message)),
+            Err(e) => Err(e),
         }
     }
 
     // Get registry tools from cache or fetch if needed (async version)
-    pub async fn get_registry_tools(&self) -> Result<RegistryToolsResponse, ErrorResponse> {
+    pub async fn get_registry_tools(&self) -> Result<RegistryToolsResponse, String> {
         // Check if we have a valid cache first (using read lock)
         {
             let cache_read = self.sync_cache.read().unwrap();
@@ -121,10 +121,10 @@ impl RegistryCache {
     }
 
     // Update the registry cache with fresh data
-    pub async fn update_registry_cache(&self) -> Result<RegistryToolsResponse, ErrorResponse> {
+    pub async fn update_registry_cache(&self) -> Result<RegistryToolsResponse, String> {
         // Lock to prevent multiple simultaneous fetches
         let _guard = self.async_cache.lock().await;
-        
+
         // Double-check if cache was updated while we were waiting for the lock
         {
             let cache_read = self.sync_cache.read().unwrap();
@@ -144,7 +144,7 @@ impl RegistryCache {
         // All Tools: Stable & Unstable
         let tools_url =
             "https://pub-5e2d77d67aac45ef811998185d312005.r2.dev/registry/registry.all.json";
-        
+
         info!("Fetching registry data from {}", tools_url);
         let client = reqwest::Client::builder().build().unwrap_or_default();
 
@@ -154,21 +154,15 @@ impl RegistryCache {
             .header("User-Agent", "MCP-Core/1.0")
             .send()
             .await
-            .map_err(|e| ErrorResponse {
-                code: -32000,
-                message: format!("Failed to fetch tools from registry: {}", e),
-            })?;
+            .map_err(|e| format!("Failed to fetch tools from registry: {}", e))?;
 
-        let raw = response.json().await.map_err(|e| ErrorResponse {
-            code: -32000,
-            message: format!("Failed to parse tools from registry: {}", e),
-        })?;
+        let raw = response
+            .json()
+            .await
+            .map_err(|e| format!("Failed to parse tools from registry: {}", e))?;
 
-        let tool_wrapper: RegistryToolsResponse =
-            serde_json::from_value(raw).map_err(|e| ErrorResponse {
-                code: -32000,
-                message: format!("Failed to parse tools from registry: {}", e),
-            })?;
+        let tool_wrapper: RegistryToolsResponse = serde_json::from_value(raw)
+            .map_err(|e| format!("Failed to parse tools from registry: {}", e))?;
 
         info!("Fetched {} tools from registry", tool_wrapper.tools.len());
 
@@ -181,4 +175,4 @@ impl RegistryCache {
 
         Ok(tool_wrapper)
     }
-} 
+}

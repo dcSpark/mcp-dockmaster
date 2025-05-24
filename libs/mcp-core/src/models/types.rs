@@ -1,8 +1,11 @@
+use rmcp::model::{JsonObject, Tool};
 use serde::{Deserialize, Serialize};
-use serde_json::Value;
+use serde_json::{Map, Value};
+use std::borrow::Cow;
 use std::collections::HashMap;
 use std::fmt;
 use std::hash::{Hash, Hasher};
+use std::sync::Arc;
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct ServerId(String);
@@ -151,7 +154,7 @@ pub struct ServerRegistrationResponse {
 #[derive(Deserialize)]
 pub struct ToolExecutionRequest {
     pub tool_id: String,
-    pub parameters: Value,
+    pub parameters: Option<Map<String, Value>>,
 }
 
 /// MCP tool execution response
@@ -207,6 +210,75 @@ pub struct DiscoverServerToolsRequest {
 pub struct Distribution {
     pub r#type: String,
     pub package: String,
+}
+
+// Custom serializer for the Error variant to format as "Error: message"
+fn serialize_error<S>(error_message: &String, serializer: S) -> Result<S::Ok, S::Error>
+where
+    S: serde::Serializer,
+{
+    serializer.serialize_str(&format!("Error: {}", error_message))
+}
+
+// Custom deserializer for the Error variant that handles "Error: message" format
+fn deserialize_error<'de, D>(deserializer: D) -> Result<String, D::Error>
+where
+    D: serde::Deserializer<'de>,
+{
+    let s = String::deserialize(deserializer)?;
+    if s.starts_with("Error: ") {
+        // Use a safer way to remove the prefix
+        Ok(s.trim_start_matches("Error: ").to_string())
+    } else {
+        Ok(s) // Return as is if it doesn't have the prefix
+    }
+}
+
+#[derive(Clone, Debug, Serialize, Deserialize)]
+pub struct Publisher {
+    pub id: String,
+    pub name: String,
+    pub url: String,
+}
+
+// #[derive(Clone, Debug, Serialize, Deserialize)]
+// pub struct Config {
+//     pub command: String,
+//     pub args: Vec<String>,
+//     pub env: HashMap<String, String>,
+// }
+
+#[derive(Clone, Debug, Serialize, Deserialize)]
+pub struct RegistryTool {
+    pub id: String,
+    pub name: String,
+    pub description: String,
+    pub short_description: String,
+    pub publisher: Publisher,
+    pub is_official: Option<bool>,
+    pub source_url: Option<String>,
+    pub distribution: Distribution,
+    pub license: String,
+    pub runtime: String,
+    pub config: ServerConfiguration,
+    pub categories: Vec<String>,
+    pub tags: Vec<String>,
+}
+
+/// Response for registry tools listing
+#[derive(Clone, Debug, Serialize, Deserialize)]
+pub struct RegistryToolsResponse {
+    pub count: u32,
+    pub version: u64,
+    pub categories: HashMap<String, u32>,
+    pub tags: HashMap<String, u32>,
+    pub tools: Vec<RegistryTool>,
+}
+
+#[derive(Clone, Debug, Serialize, Deserialize)]
+pub struct ConfigUpdateRequest {
+    pub tool_id: String,
+    pub config: HashMap<String, String>,
 }
 
 #[derive(Clone, Debug, Serialize, Deserialize, Default)]
@@ -342,88 +414,6 @@ fn default_is_active() -> bool {
     true
 }
 
-// Custom serializer for the Error variant to format as "Error: message"
-fn serialize_error<S>(error_message: &String, serializer: S) -> Result<S::Ok, S::Error>
-where
-    S: serde::Serializer,
-{
-    serializer.serialize_str(&format!("Error: {}", error_message))
-}
-
-// Custom deserializer for the Error variant that handles "Error: message" format
-fn deserialize_error<'de, D>(deserializer: D) -> Result<String, D::Error>
-where
-    D: serde::Deserializer<'de>,
-{
-    let s = String::deserialize(deserializer)?;
-    if s.starts_with("Error: ") {
-        // Use a safer way to remove the prefix
-        Ok(s.trim_start_matches("Error: ").to_string())
-    } else {
-        Ok(s) // Return as is if it doesn't have the prefix
-    }
-}
-
-#[derive(Clone, Debug, Serialize, Deserialize)]
-pub struct Publisher {
-    pub id: String,
-    pub name: String,
-    pub url: String,
-}
-
-// #[derive(Clone, Debug, Serialize, Deserialize)]
-// pub struct Config {
-//     pub command: String,
-//     pub args: Vec<String>,
-//     pub env: HashMap<String, String>,
-// }
-
-#[derive(Clone, Debug, Serialize, Deserialize)]
-pub struct RegistryTool {
-    pub id: String,
-    pub name: String,
-    pub description: String,
-    pub short_description: String,
-    pub publisher: Publisher,
-    pub is_official: Option<bool>,
-    pub source_url: Option<String>,
-    pub distribution: Distribution,
-    pub license: String,
-    pub runtime: String,
-    pub config: ServerConfiguration,
-    pub categories: Vec<String>,
-    pub tags: Vec<String>,
-}
-
-/// Response for registry tools listing
-#[derive(Clone, Debug, Serialize, Deserialize)]
-pub struct RegistryToolsResponse {
-    pub count: u32,
-    pub version: u64,
-    pub categories: HashMap<String, u32>,
-    pub tags: HashMap<String, u32>,
-    pub tools: Vec<RegistryTool>,
-}
-
-#[derive(Clone, Debug, Serialize, Deserialize)]
-pub struct ConfigUpdateRequest {
-    pub tool_id: String,
-    pub config: HashMap<String, String>,
-}
-
-/// Response for server tools listing
-#[derive(Debug, Serialize)]
-pub struct ServerToolsResponse {
-    pub tools: Vec<ServerToolInfo>,
-}
-
-/// Common error response structure
-#[derive(Debug, Serialize, Deserialize)]
-pub struct ErrorResponse {
-    pub code: i32,
-    pub message: String,
-}
-
 impl ServerToolInfo {
     /// Create a new ServerToolInfo from a JSON value
     pub fn from_value(value: Value, server_id: String) -> Result<ServerToolInfo, String> {
@@ -451,5 +441,49 @@ impl ServerToolInfo {
 
         // Now deserialize the complete object
         serde_json::from_value(obj).map_err(|e| e.to_string())
+    }
+
+    pub fn from_tool(tool: Tool, server_id: String) -> Result<ServerToolInfo, String> {
+        let name = tool.name.clone();
+        let id = name
+            .to_lowercase()
+            .chars()
+            .map(|c| if c.is_alphanumeric() { c } else { '_' })
+            .collect();
+
+        let input_schema: InputSchema = serde_json::from_value(
+            serde_json::to_value(tool.input_schema).map_err(|e| e.to_string())?,
+        )
+        .map_err(|e| e.to_string())?;
+
+        Ok(Self {
+            id,
+            server_id: server_id.clone(),
+            name: tool.name.into(),
+            description: tool.description.unwrap_or_default().into(),
+            input_schema: Some(input_schema),
+            proxy_id: None,
+            is_active: true,
+        })
+    }
+
+    pub fn to_tool(self) -> Result<Tool, String> {
+        let input_schema: JsonObject = serde_json::to_value(self.input_schema)
+            .map_err(|e| e.to_string())
+            .map_err(|e| format!("failed to serialize input schema: {}", e))?
+            .as_object()
+            .unwrap_or(&serde_json::Map::new())
+            .to_owned();
+        let binding = self.name.clone();
+        let name = Cow::Borrowed(&binding);
+        let binding = self.description.clone();
+        let description = Cow::Borrowed(&binding);
+
+        Ok(Tool {
+            name: name.into_owned().into(),
+            description: Some(description.into_owned().into()),
+            input_schema: Arc::new(input_schema),
+            annotations: None,
+        })
     }
 }

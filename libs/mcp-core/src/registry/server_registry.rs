@@ -1,6 +1,8 @@
 use std::collections::HashMap;
 
-use crate::{database::db_manager::DBManager, models::types::{ServerDefinition, ServerToolInfo}};
+use crate::{
+    database::db_manager::DBManager, models::types::ServerDefinition, types::ServerToolInfo,
+};
 
 /// ServerRegistry: database logic only
 ///
@@ -47,7 +49,11 @@ impl ServerRegistry {
     }
 
     /// Get a server tool by ID and server_id
-    pub fn get_server_tool(&self, tool_id: &str, server_id: &str) -> Result<ServerToolInfo, String> {
+    pub fn get_server_tool(
+        &self,
+        tool_id: &str,
+        server_id: &str,
+    ) -> Result<ServerToolInfo, String> {
         self.db_manager.get_server_tool(tool_id, server_id)
     }
 

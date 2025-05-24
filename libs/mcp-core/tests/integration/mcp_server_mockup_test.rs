@@ -10,6 +10,7 @@ mod tests {
         models::types::ToolExecutionRequest,
         types::{ServerConfiguration, ServerRegistrationRequest, ServerUpdateRequest},
     };
+    use serde_json::Map;
 
     use super::*;
 
@@ -87,7 +88,7 @@ mod tests {
         // Execute tool
         let request = ToolExecutionRequest {
             tool_id: format!("{}:{}", tool_id, "hello_world"),
-            parameters: json!({}),
+            parameters: None,
         };
 
         let result = mcp_core.execute_proxy_tool(request).await?;
@@ -125,11 +126,11 @@ mod tests {
         }
 
         // Test hello_world_with_input
+        let mut parameters = Map::new();
+        parameters.insert("message".to_string(), json!("custom message"));
         let request = ToolExecutionRequest {
             tool_id: format!("{}:{}", tool_id, "hello_world_with_input"),
-            parameters: json!({
-                "message": "custom message"
-            }),
+            parameters: Some(parameters),
         };
 
         let result = mcp_core.execute_proxy_tool(request).await?;
@@ -167,11 +168,11 @@ mod tests {
         }
 
         // Test hello_world_with_config
+        let mut parameters = Map::new();
+        parameters.insert("config".to_string(), json!("test-config"));
         let request = ToolExecutionRequest {
             tool_id: format!("{}:{}", tool_id, "hello_world_with_config"),
-            parameters: json!({
-                "config": "test-config"
-            }),
+            parameters: Some(parameters),
         };
 
         let result = mcp_core.execute_proxy_tool(request).await?;
@@ -287,11 +288,11 @@ mod tests {
         );
 
         // Execute tool
+        let mut parameters = Map::new();
+        parameters.insert("format".to_string(), json!("legacy"));
         let request = ToolExecutionRequest {
             tool_id: format!("{}:{}", tool_id, "hello_world"),
-            parameters: json!({
-                "format": "legacy"
-            }),
+            parameters: Some(parameters),
         };
 
         let result = mcp_core.execute_proxy_tool(request).await?;
@@ -330,12 +331,12 @@ mod tests {
         }
 
         // Test hello_world_with_input
+        let mut parameters = Map::new();
+        parameters.insert("message".to_string(), json!("custom message"));
+        parameters.insert("format".to_string(), json!("legacy"));
         let request = ToolExecutionRequest {
             tool_id: format!("{}:{}", tool_id, "hello_world_with_input"),
-            parameters: json!({
-                "message": "custom message",
-                "format": "legacy"
-            }),
+            parameters: Some(parameters),
         };
 
         let result = mcp_core.execute_proxy_tool(request).await?;
@@ -374,12 +375,12 @@ mod tests {
         }
 
         // Test hello_world_with_config
+        let mut parameters = Map::new();
+        parameters.insert("config".to_string(), json!("test-config"));
+        parameters.insert("format".to_string(), json!("legacy"));
         let request = ToolExecutionRequest {
             tool_id: format!("{}:{}", tool_id, "hello_world_with_config"),
-            parameters: json!({
-                "config": "test-config",
-                "format": "legacy"
-            }),
+            parameters: Some(parameters),
         };
 
         let result = mcp_core.execute_proxy_tool(request).await?;
@@ -475,9 +476,10 @@ mod tests {
         let server_id = response.tool_id.ok_or("No server ID returned")?;
 
         // Verify server is running by executing a command
+        let mut parameters = Map::new();
         let request = ToolExecutionRequest {
             tool_id: format!("{}:{}", server_id, "hello_world"),
-            parameters: json!({}),
+            parameters: Some(parameters),
         };
         let result = mcp_core.execute_proxy_tool(request).await?;
         assert!(result.success, "Initial server execution failed");
@@ -496,9 +498,10 @@ mod tests {
         let check_interval = std::time::Duration::from_millis(500);
 
         loop {
+            let parameters = Map::new();
             let request = ToolExecutionRequest {
                 tool_id: format!("{}:{}", server_id, "hello_world"),
-                parameters: json!({}),
+                parameters: Some(parameters),
             };
 
             match mcp_core.execute_proxy_tool(request).await {
@@ -522,9 +525,10 @@ mod tests {
         }
 
         // Verify server is stopped by attempting to execute a command (one final check)
+        let parameters = Map::new();
         let request = ToolExecutionRequest {
             tool_id: format!("{}:{}", server_id, "hello_world"),
-            parameters: json!({}),
+            parameters: Some(parameters),
         };
         let result = mcp_core.execute_proxy_tool(request).await;
         assert!(
@@ -541,9 +545,10 @@ mod tests {
         assert!(start_result.success, "Failed to restart server");
 
         // Verify server is running again
+        let parameters = Map::new();
         let request = ToolExecutionRequest {
             tool_id: format!("{}:{}", server_id, "hello_world"),
-            parameters: json!({}),
+            parameters: Some(parameters),
         };
         let result = mcp_core.execute_proxy_tool(request).await?;
         assert!(result.success, "Server did not restart successfully");

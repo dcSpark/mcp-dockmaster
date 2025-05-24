@@ -1,26 +1,19 @@
-use crate::models::types::ServerToolInfo;
 use crate::registry::server_registry::ServerRegistry;
 use crate::types::ServerStatus;
+use crate::types::ServerToolInfo;
 use crate::utils::command::CommandWrappedInShellBuilder;
-use crate::MCPError;
 use log::{error, info};
-use mcp_sdk_client::transport::stdio::StdioTransport;
-use mcp_sdk_client::transport::stdio::StdioTransportHandle;
-use mcp_sdk_client::{
-    ClientCapabilities, ClientInfo, McpClient, McpClientTrait, McpService, Transport,
+use rmcp::model::{
+    CallToolResult, ClientCapabilities, ClientInfo, Implementation, InitializeRequestParam, Tool,
 };
-use serde_json::{json, Value};
+use rmcp::service::RunningService;
+use rmcp::transport::{ConfigureCommandExt, TokioChildProcess};
+use rmcp::{RoleClient, ServiceError, ServiceExt};
+use serde_json::{json, Map, Value};
 use std::collections::HashMap;
 use std::sync::Arc;
-use std::time::Duration;
+use tokio::process::Command;
 use tokio::sync::RwLock;
-use crate::mcp_server::mcp_tools_service::MCPToolsService;
-
-/// Type alias for a transport that uses StdioTransportHandle
-pub type StdioTransportType = Arc<dyn Transport<Handle = StdioTransportHandle> + Send + Sync>;
-
-/// Type alias for McpClient trait objects
-pub type McpClientType = Arc<dyn McpClientTrait + Send + Sync>;
 
 /// MCPState: the main service layer
 ///
@@ -37,8 +30,8 @@ pub struct MCPState {
 
 #[derive(Clone)]
 pub struct MCPClient {
-    pub client: McpClientType,
-    pub transport: StdioTransportType,
+    pub client: Arc<RunningService<RoleClient, InitializeRequestParam>>,
+    // pub transport: StdioTransportType,
     pub server_status: ServerStatus,
 }
 
@@ -109,28 +102,28 @@ impl MCPState {
             return Err(format!("No client found for server: {}", server_id));
         }
 
-        // Get a clone of the client for closing the transport
-        let mcp_client_clone = {
-            let mcp_clients = self.mcp_clients.read().await;
-            mcp_clients.get(server_id).cloned()
-        };
+        let mut mcp_clients = self.mcp_clients.write().await;
+        let mcp_client_option = mcp_clients.remove(server_id);
+        info!("Removed client for {}", server_id);
+        if let Some(mcp_client_instance) = mcp_client_option {
+            let owned_service = Arc::try_unwrap(mcp_client_instance.client)
+                .map_err(|arc_still_shared| {
+                    format!(
+                        "Failed to obtain exclusive ownership of client for server {}. Cannot cancel. Strong count: {}",
+                        server_id,
+                        Arc::strong_count(&arc_still_shared)
+                    )
+                })?;
 
-        if let Some(mcp_client) = mcp_client_clone {
-            // Close the transport
-            let _ = mcp_client.transport.close().await;
-
-            // Update the server status to Stopped in the map and remove the client
-            let mut mcp_clients = self.mcp_clients.write().await;
-            mcp_clients.remove(server_id);
-            info!("Removed client for {}", server_id);
-
-            // Remove the server tools
-            let _ = self.server_tools.write().await.remove(server_id);
-
-            Ok(())
-        } else {
-            Err(format!("No client found for server: {}", server_id))
+            // Call cancel on the now owned_service.
+            // The error from cancel() is logged, but kill_process doesn't fail due to it.
+            if let Err(e) = owned_service.cancel().await {
+                error!("Cancellation error for client {}: {}", server_id, e);
+            }
         }
+        // Remove the server tools
+        let _ = self.server_tools.write().await.remove(server_id);
+        Ok(())
     }
 
     /// Execute a tool on a server
@@ -138,8 +131,8 @@ impl MCPState {
         &self,
         server_id: &str,
         tool_id: &str,
-        parameters: Value,
-    ) -> Result<Value, MCPError> {
+        parameters: Map<String, Value>,
+    ) -> Result<CallToolResult, ServiceError> {
         let mcp_client = self.mcp_clients.read().await.get(server_id).cloned();
         if let Some(mcp_client) = mcp_client {
             info!(
@@ -148,20 +141,15 @@ impl MCPState {
             );
             let result = mcp_client
                 .client
-                .call_tool(tool_id, parameters)
-                .await
-                .map_err(|e| MCPError::ToolExecutionError(e.to_string()))?;
+                .call_tool(rmcp::model::CallToolRequestParam {
+                    name: tool_id.to_string().into(),
+                    arguments: Some(parameters),
+                })
+                .await?;
 
-            // Convert the result to a Value
-            let content_value = serde_json::to_value(result.content)
-                .map_err(|e| MCPError::SerializationError(e.to_string()))?;
-
-            Ok(content_value)
+            Ok(result)
         } else {
-            Err(MCPError::ServerNotFound(format!(
-                "No client found for server: {}",
-                server_id
-            )))
+            Err(ServiceError::TransportClosed)
         }
     }
 
@@ -275,36 +263,29 @@ impl MCPState {
                 Some(envs),
             );
 
-        let transport = StdioTransport::new(adapted_program, adapted_args, adapted_envs);
-
-        let transport_handle = match transport.start().await {
-            Ok(handle) => handle,
-            Err(e) => return Err(format!("Failed to start transport: {}", e)),
-        };
-
-        // Create the service with a timeout of 300 seconds
-        let service = McpService::with_timeout(transport_handle, Duration::from_secs(300));
-
-        // Create and initialize the client
-        let mut client = McpClient::new(service);
-
         let client_info = ClientInfo {
-            name: "mcp-dockmaster".to_string(),
-            version: env!("CARGO_PKG_VERSION").to_string(),
+            protocol_version: Default::default(),
+            capabilities: ClientCapabilities::default(),
+            client_info: Implementation {
+                name: "dockmaster-mcp-client".into(),
+                version: env!("CARGO_PKG_VERSION").into(),
+            },
         };
-
-        if let Err(e) = client
-            .initialize(client_info, ClientCapabilities::default())
+        let tokio_child_process =
+            TokioChildProcess::new(Command::new(adapted_program).configure(|cmd| {
+                cmd.args(adapted_args);
+                cmd.envs(adapted_envs);
+            }))
+            .map_err(|e| format!("Failed to create tokio child process: {}", e))?;
+        let service = client_info
+            .serve(tokio_child_process)
             .await
-        {
-            return Err(format!("Failed to initialize client: {}", e));
-        }
+            .map_err(|e| format!("Failed to serve tokio child process: {}", e))?;
 
         self.mcp_clients.write().await.insert(
             server_id.to_string(),
             MCPClient {
-                client: Arc::new(client) as McpClientType,
-                transport: Arc::new(transport) as StdioTransportType,
+                client: Arc::new(service),
                 server_status: ServerStatus::Running,
             },
         );
@@ -344,11 +325,11 @@ impl MCPState {
         );
 
         // Update the tools service cache state
-        if let Some(tools_service) = MCPToolsService::get_instance().await {
-            if let Err(e) = tools_service.set_tools_hidden(hidden).await {
-                error!("Failed to update tools service visibility state: {}", e);
-            }
-        }
+        // if let Some(tools_service) = MCPToolsService::get_instance().await {
+        //     if let Err(e) = tools_service.set_tools_hidden(hidden).await {
+        //         error!("Failed to update tools service visibility state: {}", e);
+        //     }
+        // }
 
         // Persist the state to the database
         let registry = self.tool_registry.read().await;
@@ -395,34 +376,28 @@ impl MCPState {
 
                     // Save the tools to the database
                     let registry = self.tool_registry.read().await;
-                    let mut tools_info = Vec::new();
 
+                    let mut server_tool_infos = Vec::new();
                     for tool in &tools {
-                        let tool_info = ServerToolInfo {
-                            id: tool.name.clone(),
-                            name: tool.name.clone(),
-                            description: tool.description.clone(),
-                            input_schema: if tool.input_schema.is_object() {
-                                serde_json::from_value(tool.input_schema.clone()).ok()
-                            } else {
-                                None
-                            },
-                            proxy_id: Some(server_id.to_string()),
-                            server_id: server_id.to_string(),
-                            is_active: true,
-                        };
-                        info!("Saving tool info to database: {:?}", tool_info);
-                        if let Err(e) = registry.save_server_tool(&tool_info) {
-                            error!("Failed to save server tool to database: {}", e);
-                        }
-                        tools_info.push(tool_info);
+                        info!("Saving tool info to database: {:?}", tool);
+                        let server_tool_info =
+                            ServerToolInfo::from_tool(tool.clone(), server_id.to_string())
+                                .inspect_err(|e| {
+                                    error!("failed to create server tool info from tool: {}", e)
+                                })?;
+                        registry
+                            .save_server_tool(&server_tool_info)
+                            .inspect_err(|e| {
+                                error!("failed to save server tool to database: {}", e)
+                            })?;
+                        server_tool_infos.push(server_tool_info);
                     }
 
                     // Save the tools to the server_tools map
                     let mut server_tools = self.server_tools.write().await;
-                    server_tools.insert(server_id.to_string(), tools_info.clone());
+                    server_tools.insert(server_id.to_string(), server_tool_infos.clone());
 
-                    Ok(tools_info)
+                    Ok(server_tool_infos)
                 }
                 _ => Err(format!("Server {} is not running", server_id)),
             }

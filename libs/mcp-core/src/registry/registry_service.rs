@@ -1,4 +1,4 @@
-use crate::models::types::{ErrorResponse, RegistryTool, RegistryToolsResponse};
+use crate::models::types::{RegistryTool, RegistryToolsResponse};
 use crate::registry::registry_cache::RegistryCache;
 use serde_json::{json, Value};
 use std::collections::HashMap;
@@ -8,7 +8,7 @@ pub struct RegistryService;
 
 impl RegistryService {
     /// Fetch and return the tool registry
-    pub async fn fetch_registry() -> Result<RegistryToolsResponse, ErrorResponse> {
+    pub async fn fetch_registry() -> Result<RegistryToolsResponse, String> {
         RegistryCache::instance().get_registry_tools().await
     }
 
@@ -31,7 +31,7 @@ impl RegistryService {
     }
 
     /// Get a specific tool from the registry by ID
-    pub async fn get_tool_by_id(tool_id: &str) -> Result<RegistryTool, ErrorResponse> {
+    pub async fn get_tool_by_id(tool_id: &str) -> Result<RegistryTool, String> {
         let registry = Self::fetch_registry().await?;
 
         let tool = registry
@@ -42,10 +42,7 @@ impl RegistryService {
 
         match tool {
             Some(tool) => Ok(tool),
-            None => Err(ErrorResponse {
-                code: -32000,
-                message: format!("Tool '{}' not found in registry", tool_id),
-            }),
+            None => Err(format!("Tool '{}' not found in registry", tool_id)),
         }
     }
 
@@ -55,10 +52,14 @@ impl RegistryService {
     ) -> Result<Value, Value> {
         match Self::fetch_registry().await {
             Ok(registry) => {
-                let mut registry_value = serde_json::to_value(registry).unwrap_or(json!({"tools": []}));
+                let mut registry_value =
+                    serde_json::to_value(registry).unwrap_or(json!({"tools": []}));
 
                 // Mark installation status for each tool
-                if let Some(tools) = registry_value.get_mut("tools").and_then(|t| t.as_array_mut()) {
+                if let Some(tools) = registry_value
+                    .get_mut("tools")
+                    .and_then(|t| t.as_array_mut())
+                {
                     for tool in tools {
                         if let Some(name) = tool.get("name").and_then(|n| n.as_str()) {
                             let is_installed = installed_tools.contains_key(name);
@@ -76,7 +77,7 @@ impl RegistryService {
     }
 
     /// Update the registry cache
-    pub async fn update_registry_cache() -> Result<(), ErrorResponse> {
+    pub async fn update_registry_cache() -> Result<(), String> {
         RegistryCache::instance().update_registry_cache().await?;
         Ok(())
     }

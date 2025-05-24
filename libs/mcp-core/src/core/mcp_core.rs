@@ -1,14 +1,17 @@
 use std::{collections::HashMap, path::PathBuf, sync::Arc};
 
 use log::{error, info, warn};
+use rmcp::ServiceExt;
 use tokio::sync::RwLock;
 
 use crate::core::mcp_core_database_ext::McpCoreDatabaseExt;
 use crate::core::mcp_core_proxy_ext::McpCoreProxyExt;
 use crate::database::db_manager::DBManager;
+use crate::mcp_server::mcp_server::McpServer;
 use crate::registry::server_registry::ServerRegistry;
 
 use crate::mcp_state::mcp_state::MCPState;
+use rmcp::transport::stdio;
 
 /// Errors that can occur during initialization
 #[derive(Debug)]
@@ -116,18 +119,24 @@ impl MCPCore {
             .await
         {
             Ok(_) => info!("Registry cache successfully updated"),
-            Err(e) => warn!("Warning: Failed to update registry cache: {}", e.message),
+            Err(e) => warn!("Warning: Failed to update registry cache: {}", e),
         }
         info!("Initializing Background MCP servers");
         if let Err(e) = self.init_mcp_server().await {
             error!("Failed to initialize MCP server: {}", e);
             return Err(InitError::InitMcpServer(e.to_string()));
         }
-        info!("Starting HTTP server");
-        if let Err(e) = crate::http_server::start_http_server(self.clone(), self.port).await {
-            error!("Failed to start HTTP server: {}", e);
-            return Err(InitError::StartHttpServer(e.to_string()));
-        }
+
+        info!("Creating MCP server...");
+        let transport = stdio();
+        let mcp_server = McpServer::new(self.clone())
+            .serve(transport)
+            .await
+            .map_err(|e| InitError::InitMcpServer(e.to_string()))?;
+        mcp_server
+            .waiting()
+            .await
+            .map_err(|e| InitError::InitMcpServer(e.to_string()))?;
 
         Ok(())
     }

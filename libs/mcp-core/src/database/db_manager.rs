@@ -8,7 +8,7 @@ use std::path::PathBuf;
 use std::sync::Arc;
 
 use crate::models::tool_db::{
-    DBAppSetting, DBServer, DBServerEnv, DBServerTool, NewAppSetting, NewServer, NewServerEnv, 
+    DBAppSetting, DBServer, DBServerEnv, DBServerTool, NewAppSetting, NewServer, NewServerEnv,
     NewServerTool, UpdateServer, UpdateServerTool,
 };
 use crate::models::types::{
@@ -314,15 +314,12 @@ impl DBManager {
             None
         };
 
-        let command_opt = tool
-            .configuration
-            .as_ref()
-            .and_then(|c| c.command.clone());
-            
+        let command_opt = tool.configuration.as_ref().and_then(|c| c.command.clone());
+
         // Only set command_str to None if we have no configuration or command is None
         let command_str = match &command_opt {
             Some(cmd) if !cmd.is_empty() => cmd.clone(),
-            _ => String::new() // Empty string will be mapped to None below
+            _ => String::new(), // Empty string will be mapped to None below
         };
 
         // Prepare upsert struct

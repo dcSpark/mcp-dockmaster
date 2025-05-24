@@ -7,7 +7,7 @@ authors = ["MCP Team"]
 
 [dependencies]
 mcp_core = { path = "../../libs/mcp-core" }
-clap = { version = "4.5.4", features = ["derive"] }
+clap = { version = "4.5.38", features = ["derive"] }
 tokio = { version = "1.0", features = ["full"] }
 serde_json = "1"
 log = "0.4.26"

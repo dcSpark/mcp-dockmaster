@@ -139,6 +139,7 @@ impl ServerHandler for McpProxyServer {
             instructions: Some("Dockmaster MCP Proxy Server".into()),
             capabilities: ServerCapabilities::builder()
                 .enable_tools()
+                .enable_tool_list_changed()
                 .enable_prompts()
                 .enable_resources()
                 .build(),

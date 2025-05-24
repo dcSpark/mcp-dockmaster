@@ -2,14 +2,14 @@ use std::borrow::Cow;
 use std::collections::HashMap;
 
 // Import the probly-search library parts with public modules
-use probly_search::Index;
 use probly_search::score::{bm25, zero_to_one};
+use probly_search::Index;
 
 // Import the registry cache from the correct path
 use crate::registry::registry_cache::RegistryCache;
 
 // Import RegistryTool instead of Tool
-use crate::models::types::{RegistryToolsResponse, RegistryTool};
+use crate::models::types::{RegistryTool, RegistryToolsResponse};
 
 /// A search service that builds an index from the cached registry and provides search functionality.
 #[derive(Debug)]
@@ -34,8 +34,10 @@ impl RegistrySearch {
     /// Create a new RegistrySearch instance by loading the registry from the cache and indexing each tool.
     pub async fn new() -> Result<Self, SearchError> {
         // Fetch registry data (this uses the async method from your cache implementation).
-        let registry: RegistryToolsResponse = RegistryCache::instance().get_registry_tools().await
-            .map_err(|e| SearchError::CacheError(e.message))?;
+        let registry: RegistryToolsResponse = RegistryCache::instance()
+            .get_registry_tools()
+            .await
+            .map_err(|e| SearchError::CacheError(e))?;
         let tools = registry.tools;
 
         // Create a new index with 4 fields: title, description, publisher, categories.
@@ -44,22 +46,22 @@ impl RegistrySearch {
         // For each tool, assign a numeric key and add it to the index.
         for (i, tool) in tools.iter().enumerate() {
             let key = i as u32;
-            
+
             // Define extraction functions for each field in advance to avoid lifetime issues
             type FA<'a> = for<'b> fn(&'b RegistryTool) -> Vec<&'b str>;
-            
+
             let title_extractor: FA = |t| vec![&t.name];
             let desc_extractor: FA = |t| vec![&t.description];
             let publisher_extractor: FA = |t| vec![&t.publisher.name];
             let categories_extractor: FA = |t| t.categories.iter().map(|s| s.as_str()).collect();
-            
+
             let extractors: [FA; 4] = [
                 title_extractor,
-                desc_extractor, 
+                desc_extractor,
                 publisher_extractor,
-                categories_extractor
+                categories_extractor,
             ];
-            
+
             // Add the document to the index
             index.add_document(&extractors, Self::tokenizer, key, tool);
         }
@@ -83,7 +85,9 @@ impl RegistrySearch {
     pub fn search(&mut self, query: &str) -> Result<Vec<(RegistryTool, f64)>, SearchError> {
         // Add input validation
         if query.trim().is_empty() {
-            return Err(SearchError::QueryError("Search query cannot be empty".to_string()));
+            return Err(SearchError::QueryError(
+                "Search query cannot be empty".to_string(),
+            ));
         }
 
         // Make weights configurable or const
@@ -96,13 +100,16 @@ impl RegistrySearch {
         let mut zto1_scorer = zero_to_one::new();
 
         // Run queries sequentially instead of using rayon
-        let bm25_results = self.index.query(query, &mut bm25_scorer, Self::tokenizer, &WEIGHTS);
-        let zero_to_one_results = self.index.query(query, &mut zto1_scorer, Self::tokenizer, &WEIGHTS);
+        let bm25_results = self
+            .index
+            .query(query, &mut bm25_scorer, Self::tokenizer, &WEIGHTS);
+        let zero_to_one_results =
+            self.index
+                .query(query, &mut zto1_scorer, Self::tokenizer, &WEIGHTS);
 
         // More efficient score combination
-        let mut combined_scores: HashMap<u32, f64> = HashMap::with_capacity(
-            bm25_results.len().max(zero_to_one_results.len())
-        );
+        let mut combined_scores: HashMap<u32, f64> =
+            HashMap::with_capacity(bm25_results.len().max(zero_to_one_results.len()));
 
         for res in bm25_results {
             combined_scores.insert(res.key, BM25_WEIGHT * res.score);
@@ -119,15 +126,14 @@ impl RegistrySearch {
         let mut results: Vec<(RegistryTool, f64)> = combined_scores
             .into_iter()
             .filter_map(|(key, score)| {
-                self.tools.get(key as usize)
+                self.tools
+                    .get(key as usize)
                     .map(|tool| (tool.clone(), score))
             })
             .collect();
-        
-        results.sort_unstable_by(|a, b| 
-            b.1.partial_cmp(&a.1).unwrap_or(std::cmp::Ordering::Equal)
-        );
-        
+
+        results.sort_unstable_by(|a, b| b.1.partial_cmp(&a.1).unwrap_or(std::cmp::Ordering::Equal));
+
         Ok(results)
     }
 
@@ -136,32 +142,34 @@ impl RegistrySearch {
     /// This method fetches the latest registry data from the cache and rebuilds the in-memory index.
     pub async fn rebuild_index(&mut self) -> Result<(), SearchError> {
         // Add capacity hint
-        let registry: RegistryToolsResponse = RegistryCache::instance().get_registry_tools().await
-            .map_err(|e| SearchError::CacheError(e.message))?;
+        let registry: RegistryToolsResponse = RegistryCache::instance()
+            .get_registry_tools()
+            .await
+            .map_err(|e| SearchError::CacheError(e))?;
         let tools = registry.tools;
-        
+
         // Create a new index with the same number of fields
         let mut new_index = Index::<u32>::new(4);
 
         // For each tool, assign a numeric key and add it to the index.
         for (i, tool) in tools.iter().enumerate() {
             let key = i as u32;
-            
+
             // Define extraction functions for each field in advance to avoid lifetime issues
             type FA<'a> = for<'b> fn(&'b RegistryTool) -> Vec<&'b str>;
-            
+
             let title_extractor: FA = |t| vec![&t.name];
             let desc_extractor: FA = |t| vec![&t.description];
             let publisher_extractor: FA = |t| vec![&t.publisher.name];
             let categories_extractor: FA = |t| t.categories.iter().map(|s| s.as_str()).collect();
-            
+
             let extractors: [FA; 4] = [
                 title_extractor,
-                desc_extractor, 
+                desc_extractor,
                 publisher_extractor,
-                categories_extractor
+                categories_extractor,
             ];
-            
+
             // Add the document to the index
             new_index.add_document(&extractors, Self::tokenizer, key, tool);
         }
@@ -169,7 +177,7 @@ impl RegistrySearch {
         // Atomic update
         self.index = new_index;
         self.tools = tools;
-        
+
         Ok(())
     }
 }
